@@ -1,0 +1,73 @@
+// prisma/schema.prisma
+
+// Configure the PostgreSQL datasource. Prisma will read DATABASE_URL from your .env file.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Generate Prisma Client
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Status {
+  ACTIVE @map("active")
+  EXPIRED @map("expired")
+}
+
+enum WorkSetting {
+    REMOTE @map("remote")
+    ON_SITE @map("onSite")
+    HYBRID @map("hybrid")
+}
+
+enum ApprovalStatus {
+    APPROVED @map("approved")
+    PENDING @map("pending")
+    FAILED @map("failed")
+}
+
+enum JobType {
+    FULL_TIME @map("fullTime")
+    PART_TIME @map("partTime")
+    CONTRACT_TO_HIRE @map("contractToHire")
+    TEMP_CONTRACT @map("tempContract")
+    GIG_WORK @map("gigWork")
+}
+
+enum ExperienceLevel {
+    BEGINNER @map("beginner")
+    INTERMEDIATE @map("intermediate")
+    EXPERIENCED @map("experienced")
+}
+
+// Define the Job model and a Status enum
+model Job {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(100)
+  description String
+  country     String
+  state       String
+  city        String?
+  jobType     JobType
+  salary      String
+  skills      String[]
+  experienceLevel   ExperienceLevel
+  applicationUrl    String
+  benefits     String?
+  approvalStatus ApprovalStatus @default(APPROVED)
+  brokenLink    Boolean     @default(false)
+  jobStatus   Status   @default(ACTIVE)
+  responsibilities String[]
+  workSettings  WorkSetting  
+  roleCategory  String
+  qualifications    String[]
+  companyLogo    String
+  ipBlocked      Boolean    @default(false)  
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt       @map("updated_at")
+}
+
+
