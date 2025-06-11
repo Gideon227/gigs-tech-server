@@ -4,5 +4,5 @@ module.exports = (req, res, next) => {
       status: 'fail',
       message: `Cannot find ${req.originalUrl} on this server`,
     });
-  };
+};
   

@@ -3,7 +3,7 @@ const { Prisma } = require('@prisma/client');
 
 class APIFeatures {
   /**
-   * @param {Object} queryParams  req.query  (e.g. { status: 'open', 'salary[gt]': '50000', page: '2', limit: '10' })
+   * @param {Object} queryParams  req.query  (e.g. {'salary[gt]': '50000', page: '2', limit: '10' })
    */
   constructor(queryParams) {
     this.queryParams = { ...queryParams };
@@ -25,76 +25,100 @@ class APIFeatures {
 
     const where = {};
 
-    // Handle jobType filtering (e.g., ?jobType=remote)
-    if (queryObj.jobType) {
-      where.jobType = queryObj.jobType;
-    }
+    // Location filters
+    if (queryObj.country) where.country = queryObj.country;
+    if (queryObj.state) where.state = queryObj.state;
+    if (queryObj.city) where.city = queryObj.city;
+
+    // Exact match filters
+    if (queryObj.roleCategory) where.roleCategory = queryObj.roleCategory;
 
     // Handle experienceLevel filtering (e.g., ?experienceLevel=senior)
     if (queryObj.experienceLevel) {
       where.experienceLevel = queryObj.experienceLevel;
     }
 
+    ['jobType', 'skills', 'workSettings'].forEach((field) => {
+      if (queryObj[field]) {
+        if (Array.isArray(queryObj[field])) {
+          where[field] = { hasSome: queryObj[field] }; // Prisma: Array contains ANY of these
+        } else if (typeof queryObj[field] === 'string' && queryObj[field].includes(',')) {
+          where[field] = { hasSome: queryObj[field].split(',') };
+        } else {
+          where[field] = { has: queryObj[field] }; // single string match in array
+        }
+      }
+    });
+
+    // Boolean fields (e.g. ?isActive=true)
+    const booleanFields = ['isActive'];
+    booleanFields.forEach((key) => {
+      if (queryObj[key] !== undefined) {
+        where[key] = queryObj[key] === 'true';
+      }
+    });
+  
+    // Salary Range
     // Handle salary range (e.g., ?minSalary=30000&maxSalary=100000)
     if (queryObj.minSalary || queryObj.maxSalary) {
       where.salary = {};
-      if (queryObj.minSalary) {
-        where.salary.gte = Number(queryObj.minSalary);
-      }
-      if (queryObj.maxSalary) {
-        where.salary.lte = Number(queryObj.maxSalary);
-      }
+      if (queryObj.minSalary) where.salary.gte = parseFloat(queryObj.minSalary);
+      if (queryObj.maxSalary) where.salary.lte = parseFloat(queryObj.maxSalary);
     }
 
-    this.options.where = where;
+     // Date posted logic
+    if (queryObj.datePosted) {
+      const now = new Date();
+      let postedAfter;
+      switch (queryObj.datePosted) {
+        case 'today':
+          postedAfter = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case 'last_3_days':
+          postedAfter = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+          break;
+        case 'last_7_days':
+          postedAfter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'last_15_days':
+          postedAfter = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+          break;
+      }
+      if (postedAfter) {
+        where.createdAt = { gte: postedAfter };
+      }
+    }
 
     // Build Prisma where clause
     // For comparators: salary[gt]=50000 → { salary: { gt: 50000 } }
     Object.keys(queryObj).forEach((field) => {
       const value = queryObj[field];
-
-      // Match patterns like: field[gt], field[gte], field[lt], field[lte], field[ne]
       const match = field.match(/(\w+)\[(gte|gt|lte|lt|ne)\]/);
       if (match) {
-        const key = match[1];       // e.g. 'salary'
-        const operator = match[2];  // e.g. 'gt'
-        // Map to Prisma's filter operators
-        const opMap = {
-          gt: 'gt',
-          gte: 'gte',
-          lt: 'lt',
-          lte: 'lte',
-          ne: 'not',
-        };
-
-        if (!where[key]) {
-          where[key] = {};
-        }
-        // Note: For 'ne', Prisma uses `not` as a special object/value 
-        // If value is a primitive, `not: value` means not equal. 
-        // But if you want `not: { ... }`, you can do nested. Here we do primitive.
+        const key = match[1];
+        const operator = match[2];
+        const opMap = { gt: 'gt', gte: 'gte', lt: 'lt', lte: 'lte', ne: 'not' };
+  
+        if (!where[key]) where[key] = {};
+        
         if (opMap[operator] === 'not') {
           where[key] = { not: this._parseValue(key, value) };
         } else {
-          // e.g. { salary: { gt: 50000 } }
           where[key][opMap[operator]] = this._parseValue(key, value);
         }
-      } else {
-        // Simple equality filter: `?status=open`
-        // We must coerce value to correct type based on field name; 
-        // default is string. For numeric fields like salary, cast to float.
-        where[field] = this._parseValue(field, value);
       }
     });
+  
+    this.options.where = where;
 
     return this;
   }
 
   sort() {
     if (this.queryParams.sort) {
-      // e.g. ?sort=salary,-createdAt  →  orderBy: [ { salary: 'asc' }, { createdAt: 'desc' } ]
       const sortBy = this.queryParams.sort.split(',');
       this.options.orderBy = sortBy.map((field) => {
+        if (field === 'datePosted') field = 'createdAt';
         if (field.startsWith('-')) {
           return { [field.slice(1)]: 'desc' };
         } else {
@@ -102,7 +126,6 @@ class APIFeatures {
         }
       });
     } else {
-      // Default sort by newest (createdAt desc)
       this.options.orderBy = [{ createdAt: 'desc' }];
     }
     return this;

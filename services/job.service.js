@@ -17,14 +17,29 @@ const buildCacheKey = (baseKey, queryObject) => {
   return `${baseKey}:${sortedKeys}`;
 };
 
+const invalidateJobsCache = async () => {
+  const keys = await redisClient.smembers('jobs:keys');
+  if (keys.length) {
+    await redisClient.del(...keys);
+    await redisClient.del('jobs:keys');
+    logger.debug(`Redis cache invalidated keys: ${keys}`);
+  }
+};
+
+
 exports.getAllJobs = async (reqQuery) => {
   const cacheKey = buildCacheKey('jobs', reqQuery);
 
   // Try to fetch from Redis
-  const cachedData = await redisClient.get(cacheKey);
-  if (cachedData) {
-    logger.debug(`Redis cache hit: ${cacheKey}`);
-    return JSON.parse(cachedData);
+
+  try {
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      logger.debug(`Redis cache hit: ${cacheKey}`);
+      return JSON.parse(cachedData);
+    } 
+  } catch (error) {
+    logger.error(`Redis get error: ${error.message}`)
   }
 
   // Build Prisma query options
@@ -38,9 +53,15 @@ exports.getAllJobs = async (reqQuery) => {
   // Query PostgreSQL via Prisma
   const jobs = await prisma.job.findMany(options);
 
-  // Cache result in Redis for 60 seconds
-  await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
-  logger.debug(`Redis cache set: ${cacheKey}`);
+  try {
+    // Cache result in Redis for 60 seconds
+    await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
+    // Track this cache key
+    await redisClient.sadd('jobs:keys', cacheKey);
+    logger.debug(`Redis cache set: ${cacheKey}`);
+  } catch (error) {
+    logger.error(`Redis set error: ${error.message}`)
+  }
 
   return jobs;
 };
@@ -59,11 +80,7 @@ exports.updateJobStatus = async (jobId, newStatus) => {
   });
 
   // Invalidate cache
-  const keys = await redisClient.keys('jobs:*');
-  if (keys.length > 0) {
-    await redisClient.del(keys);
-    logger.debug(`Redis cache invalidated keys: ${keys}`);
-  }
+  invalidateJobsCache()
 
   return updatedJob;
 };
@@ -75,11 +92,7 @@ exports.updateJob = async (jobId, updateData) => {
   });
 
   // Invalidate cache
-  const keys = await redisClient.keys('jobs:*');
-  if (keys.length > 0) {
-    await redisClient.del(keys);
-    logger.debug(`Redis cache invalidated keys: ${keys}`);
-  }
+  invalidateJobsCache()
 
   return updatedJob;
 };
@@ -90,11 +103,7 @@ exports.deleteJob = async (jobId) => {
   });
 
   // Invalidate cache
-  const keys = await redisClient.keys('jobs:*');
-  if (keys.length > 0) {
-    await redisClient.del(keys);
-    logger.debug(`Redis cache invalidated keys: ${keys}`);
-  }
+  invalidateJobsCache()
 
   return deletedJob;
 };
