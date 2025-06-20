@@ -19,6 +19,8 @@ const startServer = async () => {
   // Start HTTP Server
   const server = http.createServer(app);
 
+  console.log(process.env.REDIS_PORT)
+
   server.listen(port, "0.0.0.0", () => {
     logger.info(`Server running in ${env} mode on port ${port}...`);
   });
