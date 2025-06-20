@@ -8,6 +8,10 @@ router
   .get(jobController.getAllJobs);
 
 router
+  .route('/length')
+  .get(jobController.getAllJobsLength)
+
+router
   .route('/:id')
   .get(jobController.getJob)
   .patch(jobController.updateJob)

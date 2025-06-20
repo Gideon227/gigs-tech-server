@@ -19,7 +19,7 @@ const startServer = async () => {
   // Start HTTP Server
   const server = http.createServer(app);
 
-  server.listen(port, () => {
+  server.listen(port, "0.0.0.0", () => {
     logger.info(`Server running in ${env} mode on port ${port}...`);
   });
 

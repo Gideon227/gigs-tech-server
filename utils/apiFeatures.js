@@ -25,12 +25,40 @@ class APIFeatures {
 
     const where = {};
 
-    // Location filters
-    if (queryObj.country) where.country = queryObj.country;
-    if (queryObj.state) where.state = queryObj.state;
-    if (queryObj.city) where.city = queryObj.city;
-
     // Exact match filters
+    ['country', 'state', 'city'].forEach((field) => {
+      if (queryObj[field]) {
+        where[field] = {
+          equals: queryObj[field].trim(),
+          mode: 'insensitive',
+        };
+      }
+    });
+
+    // Keyword search across title and description
+    if (queryObj.keyword) {
+      const keyword = queryObj.keyword.trim();
+      if (keyword.length > 0) {
+        where.AND = where.AND || [];
+        where.AND.push({
+          OR: [
+            {
+              title: {
+                contains: keyword,
+                mode: 'insensitive',
+              },
+            },
+            {
+              description: {
+                contains: keyword,
+                mode: 'insensitive',
+              },
+            },
+          ],
+        });
+      }
+    }
+
     if (queryObj.roleCategory) where.roleCategory = queryObj.roleCategory;
 
     // Handle experienceLevel filtering (e.g., ?experienceLevel=senior)
@@ -38,17 +66,26 @@ class APIFeatures {
       where.experienceLevel = queryObj.experienceLevel;
     }
 
-    ['jobType', 'skills', 'workSettings'].forEach((field) => {
-      if (queryObj[field]) {
-        if (Array.isArray(queryObj[field])) {
-          where[field] = { hasSome: queryObj[field] }; // Prisma: Array contains ANY of these
-        } else if (typeof queryObj[field] === 'string' && queryObj[field].includes(',')) {
-          where[field] = { hasSome: queryObj[field].split(',') };
-        } else {
-          where[field] = { has: queryObj[field] }; // single string match in array
-        }
+    // For skills (Array column in DB)
+    if (queryObj.skills) {
+      if (Array.isArray(queryObj.skills)) {
+        where.skills = { hasSome: queryObj.skills };
+      } else if (typeof queryObj.skills === 'string' && queryObj.skills.includes(',')) {
+        where.skills = { hasSome: queryObj.skills.split(',') };
+      } else {
+        where.skills = { has: queryObj.skills };
       }
-    });
+    }
+
+    // For jobType (Single string column in DB)
+    if (queryObj.jobType) {
+      where.jobType = queryObj.jobType;
+    }
+
+    // For workSettings (Single string column in DB)
+    if (queryObj.workSettings) {
+      where.workSettings = queryObj.workSettings;
+    }
 
     // Boolean fields (e.g. ?isActive=true)
     const booleanFields = ['isActive'];
@@ -57,7 +94,7 @@ class APIFeatures {
         where[key] = queryObj[key] === 'true';
       }
     });
-  
+
     // Salary Range
     // Handle salary range (e.g., ?minSalary=30000&maxSalary=100000)
     if (queryObj.minSalary || queryObj.maxSalary) {
@@ -98,9 +135,9 @@ class APIFeatures {
         const key = match[1];
         const operator = match[2];
         const opMap = { gt: 'gt', gte: 'gte', lt: 'lt', lte: 'lte', ne: 'not' };
-  
+
         if (!where[key]) where[key] = {};
-        
+
         if (opMap[operator] === 'not') {
           where[key] = { not: this._parseValue(key, value) };
         } else {
@@ -108,7 +145,7 @@ class APIFeatures {
         }
       }
     });
-  
+
     this.options.where = where;
 
     return this;
@@ -163,11 +200,11 @@ class APIFeatures {
     const numericFields = ['salary'];
     const booleanFields = ['isActive'];
     const dateFields = ['createdAt'];
-  
+
     if (numericFields.includes(field)) return parseFloat(value);
     if (booleanFields.includes(field)) return value === 'true';
     if (dateFields.includes(field)) return new Date(value);
-  
+
     return value;
   }
 
@@ -188,7 +225,7 @@ module.exports = APIFeatures;
 
 
 
-//Example: 
+//Example:
 // example url: /jobs?status=open&salary[gt]=50000&sort=-salary&fields=title,salary&page=2&limit=5
 //
 // Resulting Prisma Query:

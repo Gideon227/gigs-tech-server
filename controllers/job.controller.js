@@ -32,6 +32,11 @@ exports.getJob = asyncHandler(async (req, res, next) => {
 });
 
 
+exports.getAllJobsLength = asyncHandler(async (res, req, next) => {
+  const jobLength = await jobService.getJobsLength()
+  res.status(200).json({ status: "success", data: jobLength })
+})
+
 /**
  * @route   PATCH /api/v1/jobs/:id/status
  * @desc    Update only the status field of a job

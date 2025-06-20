@@ -50,24 +50,26 @@ model Job {
   country     String
   state       String
   city        String?
-  jobType     JobType
+  jobType     String
   salary      String
   skills      String[]
-  experienceLevel   ExperienceLevel
+  experienceLevel   String?
+  currency    String
   applicationUrl    String
-  benefits     String?
-  approvalStatus ApprovalStatus @default(APPROVED)
+  benefits    String[]
+  approvalStatus String?
   brokenLink    Boolean     @default(false)
-  jobStatus   Status   @default(ACTIVE)
+  jobStatus   Status
   responsibilities String[]
-  workSettings  WorkSetting  
+  workSettings  String?
   roleCategory  String
   qualifications    String[]
-  companyLogo    String
-  ipBlocked      Boolean    @default(false)  
-  
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt       @map("updated_at")
+  companyLogo    String?
+  companyName    String?
+  ipBlocked      Boolean    @default(false)
+
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt       @map("updatedAt")
+
+  @@map("job")
 }
-
-
