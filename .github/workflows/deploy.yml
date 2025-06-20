@@ -25,9 +25,10 @@ jobs:
 
       - name: Install & Restart
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            cd $BACKEND_DIR
-            npm install --production
-            pm2 stop all || true
-            pm2 start npm --name backend -- start
-          EOF
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
+          cd ${{ secrets.BACKEND_DIR }}
+          npm install --production
+          pm2 stop backend || true
+          pm2 start ecosystem.config.js --env staging
+          pm2 save
+        EOF
