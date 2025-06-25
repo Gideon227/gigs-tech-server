@@ -59,6 +59,16 @@ class APIFeatures {
       }
     }
 
+    // Handle location filtering
+    if (queryObj.location) {
+      const loc = queryObj.location.trim().toLowerCase();
+      where.OR = [
+        { city: { equals: loc, mode: 'insensitive' } },
+        { state: { equals: loc, mode: 'insensitive' } },
+        { country: { equals: loc, mode: 'insensitive' } },
+      ];
+    }
+
     if (queryObj.roleCategory) where.roleCategory = queryObj.roleCategory;
 
     // Handle experienceLevel filtering (e.g., ?experienceLevel=senior)

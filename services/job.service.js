@@ -50,13 +50,10 @@ exports.getAllJobs = async (reqQuery) => {
     .paginate();
   const options = features.build();
 
-  // Query PostgreSQL via Prisma
   const jobs = await prisma.job.findMany(options);
 
   try {
-    // Cache result in Redis for 60 seconds
     await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
-    // Track this cache key
     await redisClient.sadd('jobs:keys', cacheKey);
     logger.debug(`Redis cache set: ${cacheKey}`);
   } catch (error) {
@@ -68,7 +65,6 @@ exports.getAllJobs = async (reqQuery) => {
 
 exports.getJobsLength = async () => {
   const cacheKey = buildCacheKey('jobsLength', reqQuery);
-  // Try to fetch from Redis
 
   try {
     const cachedData = await redisClient.get(cacheKey);
