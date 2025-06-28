@@ -46,8 +46,7 @@ exports.getAllJobs = async (reqQuery) => {
   const features = new APIFeatures(reqQuery)
     .filter()
     .sort()
-    .limitFields()
-    .paginate();
+    .limitFields();
   const options = features.build();
 
   const jobs = await prisma.job.findMany(options);
