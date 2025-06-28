@@ -172,13 +172,25 @@ exports.getRelatedJobs = async (jobId) => {
         score += 1;
       }
 
-      if (job.country && currentJob.country && job.country.toLowerCase() === currentJob.country.toLowerCase()) {
+      if (
+        typeof job.country === 'string' &&
+        typeof currentJob.country === 'string' &&
+        job.country.toLowerCase() === currentJob.country.toLowerCase()
+      ) {
         score += 0.5;
       }
 
-      const sharedSkills = job.skills.filter((skill) =>
-        currentJob.skills.some((s) => s.name.toLowerCase() === skill.name.toLowerCase())
-      );
+      const sharedSkills = Array.isArray(job.skills) && Array.isArray(currentJob.skills)
+      ? job.skills.filter((skill) =>
+          currentJob.skills.some(
+            (s) =>
+              typeof s === 'string' &&
+              typeof skill === 'string' &&
+              s.toLowerCase() === skill.toLowerCase()
+          )
+        )
+      : [];
+
       if (sharedSkills.length > 0) score += 2;
 
       return { ...job, score };
