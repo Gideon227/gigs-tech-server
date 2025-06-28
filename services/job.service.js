@@ -148,8 +148,7 @@ exports.getRelatedJobs = async (jobId) => {
   }
 
   const currentJob = await prisma.job.findUnique({
-    where: { id: jobId },
-    include: { skills: true },
+    where: { id: jobId }
   });
 
   if (!currentJob) {
@@ -160,8 +159,7 @@ exports.getRelatedJobs = async (jobId) => {
     where: {
       id: { not: jobId },
       roleCategory: currentJob.roleCategory
-    },
-    include: { skills: true },
+    }
   });
 
   const related = candidates
@@ -170,17 +168,14 @@ exports.getRelatedJobs = async (jobId) => {
 
       score += 3;
 
-      // experienceLevel match
       if (job.experienceLevel === currentJob.experienceLevel) {
         score += 1;
       }
 
-      // country match
       if (job.country && currentJob.country && job.country.toLowerCase() === currentJob.country.toLowerCase()) {
         score += 0.5;
       }
 
-      // shared skills
       const sharedSkills = job.skills.filter((skill) =>
         currentJob.skills.some((s) => s.name.toLowerCase() === skill.name.toLowerCase())
       );
