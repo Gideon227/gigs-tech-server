@@ -98,3 +98,14 @@ exports.deleteJob = asyncHandler(async (req, res, next) => {
     data: null,
   });
 });
+
+exports.getRelatedJobs = async (req, res) => {
+  try {
+    const jobId = req.params.id;
+    const relatedJobs = await jobService.getRelatedJobs(jobId);
+    res.status(200).json({ status: 'success', data: relatedJobs });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};

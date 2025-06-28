@@ -134,3 +134,70 @@ exports.deleteJob = async (jobId) => {
 
   return deletedJob;
 };
+
+exports.getRelatedJobs = async (jobId) => {
+  const cacheKey = `related-jobs:${jobId}`;
+
+  try {
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      logger.debug(`Redis cache hit: ${cacheKey}`);
+      return JSON.parse(cached);
+    }
+  } catch (err) {
+    logger.error(`Redis read error: ${err.message}`);
+  }
+
+  const currentJob = await prisma.job.findUnique({
+    where: { id: jobId },
+    include: { skills: true },
+  });
+
+  if (!currentJob) {
+    throw new Error('Job not found');
+  }
+
+  const candidates = await prisma.job.findMany({
+    where: {
+      id: { not: jobId },
+      roleCategory: currentJob.roleCategory
+    },
+    include: { skills: true },
+  });
+
+  const related = candidates
+    .map((job) => {
+      let score = 0;
+
+      score += 3;
+
+      // experienceLevel match
+      if (job.experienceLevel === currentJob.experienceLevel) {
+        score += 1;
+      }
+
+      // country match
+      if (job.country && currentJob.country && job.country.toLowerCase() === currentJob.country.toLowerCase()) {
+        score += 0.5;
+      }
+
+      // shared skills
+      const sharedSkills = job.skills.filter((skill) =>
+        currentJob.skills.some((s) => s.name.toLowerCase() === skill.name.toLowerCase())
+      );
+      if (sharedSkills.length > 0) score += 2;
+
+      return { ...job, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3); 
+    
+  try {
+    await redisClient.set(cacheKey, JSON.stringify(related), 'EX', 300);
+    await redisClient.sadd('related-jobs:keys', cacheKey);
+  } catch (err) {
+    logger.error(`Redis write error: ${err.message}`);
+  }
+
+  return related;
+}

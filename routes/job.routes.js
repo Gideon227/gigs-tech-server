@@ -21,4 +21,8 @@ router
 //   .route('/:id/status')
 //   .patch(jobController.updateJobStatus);
 
+router
+  .route('/:id/related-jobs')
+  .get( jobController.getRelatedJobs);
+
 module.exports = router;
