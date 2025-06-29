@@ -46,7 +46,8 @@ exports.getAllJobs = async (reqQuery) => {
   const features = new APIFeatures(reqQuery)
     .filter()
     .sort()
-    .limitFields();
+    .limitFields()
+    .paginate();
   const options = features.build();
 
   const jobs = await prisma.job.findMany(options);
@@ -63,33 +64,10 @@ exports.getAllJobs = async (reqQuery) => {
 };
 
 exports.getJobsLength = async () => {
-  const cacheKey = buildCacheKey('jobsLength', reqQuery);
-
-  try {
-    const cachedData = await redisClient.get(cacheKey);
-    if (cachedData) {
-      logger.debug(`Redis cache hit: ${cacheKey}`);
-      return JSON.parse(cachedData);
-    } 
-  } catch (error) {
-    logger.error(`Redis get error: ${error.message}`)
-  }
-
-  const jobsLength = await prisma.job.count({
-    where: {
-      jobStatus: "ACTIVE"
-    }
-  })
-
-  try {
-    // Cache result in Redis for 60 seconds
-    await redisClient.set(cacheKey, JSON.stringify(jobsLength), 'EX', 60);
-    // Track this cache key
-    await redisClient.sadd('jobsLength:keys', cacheKey);
-    logger.debug(`Redis cache set: ${cacheKey}`);
-  } catch (error) {
-    logger.error(`Redis set error: ${error.message}`)
-  }
+  const total = await prisma.job.count({
+    where: { jobStatus: "ACTIVE" }, 
+  });
+  return total;
 }
 
 exports.getJobById = async (jobId) => {

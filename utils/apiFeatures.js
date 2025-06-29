@@ -11,8 +11,8 @@ class APIFeatures {
       where: {},
       orderBy: [],
       select: {},
-      // skip: 0,
-      // take: 10,
+      skip: 0,
+      take: 10,
     };
     this.hasSelect = false;
   }
@@ -190,16 +190,15 @@ class APIFeatures {
     return this;
   }
 
-  // paginate() {
-  //   // e.g. ?page=2&limit=10
-  //   const page = parseInt(this.queryParams.page, 10) || 1;
-  //   const limit = parseInt(this.queryParams.limit, 10) || 10;
-  //   const skip = (page - 1) * limit;
+  paginate() {
+    const page = parseInt(this.queryParams.page, 10) || 1;
+    const limit = parseInt(this.queryParams.limit, 10) || 10;
+    const skip = (page - 1) * limit;
 
-  //   this.options.skip = skip;
-  //   this.options.take = limit;
-  //   return this;
-  // }
+    this.options.skip = skip;
+    this.options.take = limit;
+    return this;
+  }
 
   /**
    * Parse a string value into the correct type based on field name.
