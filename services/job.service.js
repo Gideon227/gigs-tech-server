@@ -65,7 +65,7 @@ exports.getAllJobs = async (reqQuery) => {
 
 exports.getJobsLength = async () => {
   const total = await prisma.job.count({
-    where: { jobStatus: "ACTIVE" }, 
+    where: { jobStatus: "active" }, 
   });
   return total;
 }

@@ -11,8 +11,8 @@ class APIFeatures {
       where: {},
       orderBy: [],
       select: {},
-      skip: 0,
-      take: 10,
+      // skip: 0,
+      // take: 10,
     };
     this.hasSelect = false;
   }
@@ -231,25 +231,3 @@ class APIFeatures {
 }
 
 module.exports = APIFeatures;
-
-
-
-//Example:
-// example url: /jobs?status=open&salary[gt]=50000&sort=-salary&fields=title,salary&page=2&limit=5
-//
-// Resulting Prisma Query:
-// {
-//   where: {
-//     status: 'open',
-//     salary: { gt: 50000 }
-//   },
-//   orderBy: [
-//     { salary: 'desc' }
-//   ],
-//   select: {
-//     title: true,
-//     salary: true
-//   },
-//   skip: 5,
-//   take: 5
-// }
