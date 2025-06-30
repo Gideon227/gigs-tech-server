@@ -51,6 +51,7 @@ exports.getAllJobs = async (reqQuery) => {
   const options = features.build();
 
   const jobs = await prisma.job.findMany(options);
+  const totalJobs = await prisma.job.count({ });
 
   try {
     await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
@@ -60,7 +61,7 @@ exports.getAllJobs = async (reqQuery) => {
     logger.error(`Redis set error: ${error.message}`)
   }
 
-  return jobs;
+  return {jobs, totalJobs};
 };
 
 exports.getJobsLength = async () => {
