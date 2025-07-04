@@ -108,9 +108,12 @@ class APIFeatures {
     // Salary Range
     // Handle salary range (e.g., ?minSalary=30000&maxSalary=100000)
     if (queryObj.minSalary || queryObj.maxSalary) {
-      where.salary = {};
-      if (queryObj.minSalary) where.salary.gte = parseFloat(queryObj.minSalary);
-      if (queryObj.maxSalary) where.salary.lte = parseFloat(queryObj.maxSalary);
+      if (queryObj.minSalary !== undefined && queryObj.minSalary !== null && queryObj.minSalary !== '') {
+        where.minSalary = { gte: parseFloat(queryObj.minSalary) };
+      }
+      if (queryObj.maxSalary !== undefined && queryObj.maxSalary !== null && queryObj.maxSalary !== '') {
+        where.maxSalary = { lte: parseFloat(queryObj.maxSalary) };
+      }
     }
 
      // Date posted logic
