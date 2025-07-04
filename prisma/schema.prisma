@@ -65,7 +65,8 @@ model Job {
   companyLogo    String?
   companyName    String?
   ipBlocked      Boolean    @default(false)
-
+  minSalary   String?
+  maxSalary   String?
   createdAt   DateTime @default(now()) @map("createdAt")
   updatedAt   DateTime @updatedAt       @map("updatedAt")
 
