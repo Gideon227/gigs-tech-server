@@ -51,7 +51,7 @@ exports.getAllJobs = async (reqQuery) => {
   const options = features.build();
 
   const jobs = await prisma.job.findMany(options);
-  const totalJobs = await prisma.job.count({ });
+  const totalJobs = await prisma.job.count({ where: options.where });
 
   try {
     await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
