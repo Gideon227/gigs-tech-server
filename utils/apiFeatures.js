@@ -109,8 +109,8 @@ class APIFeatures {
     // Handle salary range (e.g., ?minSalary=30000&maxSalary=100000)
     if (queryObj.minSalary || queryObj.maxSalary) {
       where.salary = {};
-      if (queryObj.minSalary) where.salary.gte = parseFloat(queryObj.minSalary);
-      if (queryObj.maxSalary) where.salary.lte = parseFloat(queryObj.maxSalary);
+      if (queryObj.minSalary) where.salary.gte = queryObj.minSalary.toString();
+      if (queryObj.maxSalary) where.salary.lte = queryObj.maxSalary.toString();
     }
 
      // Date posted logic
