@@ -209,7 +209,7 @@ class APIFeatures {
    * - Otherwise leave as string
    */
   _parseValue(field, value) {
-    const numericFields = ['salary'];
+    const numericFields = ['minSalary', 'maxSalary'];
     const booleanFields = ['isActive'];
     const dateFields = ['createdAt'];
 
