@@ -44,7 +44,7 @@ enum ExperienceLevel {
 model Job {
   id          String   @id @default(uuid())
   title       String   @db.VarChar(100)
-  description String
+  description String?
   country     String
   state       String
   city        String?
