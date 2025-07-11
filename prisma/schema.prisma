@@ -52,7 +52,7 @@ model Job {
   salary      String
   skills      String[]
   experienceLevel   String?
-  currency    String
+  currency    String?
   applicationUrl    String
   benefits    String[]
   approvalStatus String?
@@ -67,8 +67,8 @@ model Job {
   ipBlocked      Boolean    @default(false)
   minSalary   Int?
   maxSalary   Int?
-  postedDate  DateTime
-  category    String
+  postedDate  DateTime?
+  category    String?
   createdAt   DateTime @default(now()) @map("createdAt")
   updatedAt   DateTime @updatedAt       @map("updatedAt")
 
