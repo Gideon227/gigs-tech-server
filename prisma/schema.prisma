@@ -60,7 +60,7 @@ model Job {
   jobStatus   Status
   responsibilities String[]
   workSettings  String?
-  roleCategory  String
+  roleCategory  String?
   qualifications    String[]
   companyLogo    String?
   companyName    String?
