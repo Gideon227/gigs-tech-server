@@ -53,8 +53,10 @@ exports.getAllJobs = async (reqQuery) => {
   const jobs = await prisma.job.findMany(options);
   const totalJobs = await prisma.job.count({ where: options.where });
 
+  const payloadToCache = { jobs, totalJobs };
+
   try {
-    await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
+    await redisClient.set(cacheKey, JSON.stringify(payloadToCache), 'EX', 60);
     await redisClient.sadd('jobs:keys', cacheKey);
     logger.debug(`Redis cache set: ${cacheKey}`);
   } catch (error) {

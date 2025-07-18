@@ -88,14 +88,30 @@ class APIFeatures {
     }
 
     // For jobType (Single string column in DB)
+    // if (queryObj.jobType) {
+    //   where.jobType = queryObj.jobType;
+    // }
     if (queryObj.jobType) {
-      where.jobType = queryObj.jobType;
+      if (Array.isArray(queryObj.jobType)) {
+        where.jobType = { in: queryObj.jobType };
+      } else {
+        where.jobType = { equals: queryObj.jobType };
+      }
     }
 
     // For workSettings (Single string column in DB)
+    // if (queryObj.workSettings) {
+    //   where.workSettings = queryObj.workSettings;
+    // }
+
     if (queryObj.workSettings) {
-      where.workSettings = queryObj.workSettings;
+      if (Array.isArray(queryObj.workSettings)) {
+        where.workSettings = { in: queryObj.workSettings };
+      } else {
+        where.workSettings = { equals: queryObj.workSettings };
+      }
     }
+
 
     // Boolean fields (e.g. ?isActive=true)
     const booleanFields = ['isActive'];
