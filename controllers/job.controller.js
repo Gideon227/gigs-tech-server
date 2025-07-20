@@ -1,6 +1,7 @@
 // controllers/job.controller.js
 const asyncHandler = require('../middleware/asyncHandler');
 const jobService = require('../services/job.service');
+const analyticsService = require('../services/analytics.service')
 
 /**
  * @route   GET /api/v1/jobs
@@ -109,3 +110,18 @@ exports.getRelatedJobs = async (req, res) => {
     res.status(500).json({ status: 'error', message: error.message });
   }
 };
+
+//  Analytics Controller
+/**
+ * GET /api/v1/jobs/analytics
+ * Returns job analytics for dashboard charts.
+*/
+exports.getJobAnalytics = async (req, res) => {
+  try {
+    const data = analyticsService.getJobAnalytics();
+    return res.status(200).json(data)
+  } catch (error) {
+    logger.error(`Error in getJobAnalytics: ${err.message}`, { stack: err.stack });
+    return res.status(500).json({ message: `${error.message} Failed to fetch job analytics` });
+  }
+}

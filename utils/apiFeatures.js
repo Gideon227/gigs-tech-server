@@ -184,7 +184,7 @@ class APIFeatures {
     if (this.queryParams.sort) {
       const sortBy = this.queryParams.sort.split(',');
       this.options.orderBy = sortBy.map((field) => {
-        if (field === 'datePosted') field = 'createdAt';
+        if (field === 'datePosted') field = 'postedDate';
         if (field.startsWith('-')) {
           return { [field.slice(1)]: 'desc' };
         } else {
