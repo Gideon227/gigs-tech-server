@@ -74,9 +74,18 @@ exports.getJobsLength = async () => {
 }
 
 exports.getJobById = async (jobId) => {
-  return await prisma.job.findUnique({
-    where: { id: jobId },
-  });
+  const isValidUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(str);
+
+  if (!isValidUUID(jobId)) {
+    throw new Error(`Invalid UUID: ${jobId}`);
+  }
+
+  try {
+    return await prisma.job.findUnique({ where: { id: jobId } });
+  } catch (err) {
+    console.error('Invalid UUID passed to findUnique:', jobId, err.message);
+    throw new Error('Invalid job ID');
+  }
 };
 
 
