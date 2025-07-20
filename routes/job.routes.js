@@ -25,4 +25,8 @@ router
   .route('/:id/related-jobs')
   .get( jobController.getRelatedJobs);
 
+router
+  .route('/analytics')
+  .get(jobController.getJobAnalytics)
+
 module.exports = router;
