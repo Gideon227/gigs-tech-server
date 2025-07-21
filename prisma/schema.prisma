@@ -57,7 +57,7 @@ model Job {
   benefits    String[]
   approvalStatus String?
   brokenLink    Boolean     @default(false)
-  jobStatus   Status
+  jobStatus   String?
   responsibilities String[]
   workSettings  String?
   roleCategory  String?
