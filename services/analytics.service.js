@@ -52,7 +52,7 @@ exports.getJobAnalytics = async (req, res) => {
         COUNT(*) FILTER (WHERE "jobStatus" = 'active')   AS active,
         COUNT(*) FILTER (WHERE "jobStatus" = 'expired')  AS expired,
         COUNT(*) FILTER (WHERE "brokenLink" = true)        AS broken
-        FROM "Job"
+        FROM "job"
         WHERE "createdAt" >= ${monthAgo} AND "createdAt" <= ${todayEnd}
         GROUP BY date
         ORDER BY date ASC;
