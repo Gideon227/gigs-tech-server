@@ -45,25 +45,46 @@ exports.getJobAnalytics = async (req, res) => {
         prisma.job.count({ where: { createdAt: { gte: yestStart,   lte: yestEnd },   brokenLink: true } }),
     ]);
 
+    // const chartData = await prisma.$queryRaw`
+    //     SELECT
+    //     DATE_TRUNC('day', "createdAt")::date AS date,
+    //     COUNT(*) AS total,
+    //     COUNT(*) FILTER (WHERE "jobStatus" = 'active')   AS active,
+    //     COUNT(*) FILTER (WHERE "jobStatus" = 'expired')  AS expired,
+    //     COUNT(*) FILTER (WHERE "brokenLink" = true)        AS broken
+    //     FROM "job"
+    //     WHERE "createdAt" >= ${monthAgo} AND "createdAt" <= ${todayEnd}
+    //     GROUP BY date
+    //     ORDER BY date ASC;
+    // `;
+
     const chartData = await prisma.$queryRaw`
+        WITH date_series AS (
+            SELECT generate_series(
+            CURRENT_DATE - INTERVAL '29 days',
+            CURRENT_DATE,
+            INTERVAL '1 day'
+            )::DATE AS date
+        )
         SELECT
-        DATE_TRUNC('day', "createdAt") AS date,
-        COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE "jobStatus" = 'active')   AS active,
-        COUNT(*) FILTER (WHERE "jobStatus" = 'expired')  AS expired,
-        COUNT(*) FILTER (WHERE "brokenLink" = true)        AS broken
-        FROM "job"
-        WHERE "createdAt" >= ${monthAgo} AND "createdAt" <= ${todayEnd}
-        GROUP BY date
-        ORDER BY date ASC;
+            ds.date,
+            COUNT(j.*) AS total,
+            COUNT(j.*) FILTER (WHERE j."jobStatus" = 'active') AS active,
+            COUNT(j.*) FILTER (WHERE j."jobStatus" = 'expired') AS expired,
+            COUNT(j.*) FILTER (WHERE j."brokenLink" = true) AS broken
+        FROM date_series ds
+        LEFT JOIN "job" j ON DATE(j."createdAt") = ds.date
+        GROUP BY ds.date
+        ORDER BY ds.date ASC;
     `;
+
 
     const safeChartData = chartData.map((row) => ({
         date: row.date,
-        total: Number(row.total),
-        active: Number(row.active),
-        expired: Number(row.expired),
-        broken: Number(row.broken),
+        total: Number(row.total || 0),
+        active: Number(row.active || 0),
+        expired: Number(row.expired || 0),
+        broken: Number(row.broken || 0),
     }));
 
     const result = {
