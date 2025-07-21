@@ -121,7 +121,7 @@ exports.getJobAnalytics = async (req, res) => {
     const data = await analyticsService.getJobAnalytics();
     return res.status(200).json({ status: 'success', data: data })
   } catch (error) {
-    logger.error(`Error in getJobAnalytics: ${err.message}`, { stack: err.stack });
+    console.error(error)
     return res.status(500).json({ message: `${error.message} Failed to fetch job analytics` });
   }
 }
