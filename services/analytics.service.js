@@ -58,6 +58,14 @@ exports.getJobAnalytics = async (req, res) => {
         ORDER BY date ASC;
     `;
 
+    const safeChartData = chartData.map((row) => ({
+        date: row.date,
+        total: Number(row.total),
+        active: Number(row.active),
+        expired: Number(row.expired),
+        broken: Number(row.broken),
+    }));
+
     const result = {
         today: {
             total:   todayTotal,
@@ -71,7 +79,7 @@ exports.getJobAnalytics = async (req, res) => {
             expired: yesterdayExpired,
             broken:  yesterdayBroken
         },
-        chartData
+        chartData: safeChartData
     };
 
     try {
