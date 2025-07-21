@@ -35,23 +35,23 @@ exports.getJobAnalytics = async (req, res) => {
         prisma.job.count({ where: { createdAt: { gte: todayStart, lte: todayEnd } } }),
         prisma.job.count({ where: { createdAt: { gte: yestStart,   lte: yestEnd } } }),
 
-        prisma.job.count({ where: { createdAt: { gte: todayStart, lte: todayEnd },   jobStatus: 'ACTIVE'  } }),
-        prisma.job.count({ where: { createdAt: { gte: yestStart,   lte: yestEnd },   jobStatus: 'ACTIVE'  } }),
+        prisma.job.count({ where: { createdAt: { gte: todayStart, lte: todayEnd },   jobStatus: 'active'  } }),
+        prisma.job.count({ where: { createdAt: { gte: yestStart,   lte: yestEnd },   jobStatus: 'active'  } }),
 
-        prisma.job.count({ where: { createdAt: { gte: todayStart, lte: todayEnd },   jobStatus: 'EXPIRED' } }),
-        prisma.job.count({ where: { createdAt: { gte: yestStart,   lte: yestEnd },   jobStatus: 'EXPIRED' } }),
+        prisma.job.count({ where: { createdAt: { gte: todayStart, lte: todayEnd },   jobStatus: 'expired' } }),
+        prisma.job.count({ where: { createdAt: { gte: yestStart,   lte: yestEnd },   jobStatus: 'expired' } }),
 
-        prisma.job.count({ where: { createdAt: { gte: todayStart, lte: todayEnd },   isBroken: true } }),
-        prisma.job.count({ where: { createdAt: { gte: yestStart,   lte: yestEnd },   isBroken: true } }),
+        prisma.job.count({ where: { createdAt: { gte: todayStart, lte: todayEnd },   brokenLink: true } }),
+        prisma.job.count({ where: { createdAt: { gte: yestStart,   lte: yestEnd },   brokenLink: true } }),
     ]);
 
     const chartData = await prisma.$queryRaw`
         SELECT
         DATE_TRUNC('day', "createdAt") AS date,
         COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE "jobStatus" = 'ACTIVE')   AS active,
-        COUNT(*) FILTER (WHERE "jobStatus" = 'EXPIRED')  AS expired,
-        COUNT(*) FILTER (WHERE "isBroken" = true)        AS broken
+        COUNT(*) FILTER (WHERE "jobStatus" = 'active')   AS active,
+        COUNT(*) FILTER (WHERE "jobStatus" = 'expired')  AS expired,
+        COUNT(*) FILTER (WHERE "brokenLink" = true)        AS broken
         FROM "Job"
         WHERE "createdAt" >= ${monthAgo} AND "createdAt" <= ${todayEnd}
         GROUP BY date
