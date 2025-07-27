@@ -74,3 +74,75 @@ model Job {
 
   @@map("job")
 }
+
+// model Visitor {
+//   id          String   @id @default(cuid())
+//   sessionId   String   @unique
+//   ipAddress   String?
+//   userAgent   String?
+//   country     String?
+//   city        String?
+//   referrer    String?
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+  
+//   pageViews   PageView[]
+  
+//   @@map("visitors")
+// }
+
+
+// model DailyStats {
+//   id            String   @id @default(cuid())
+//   date          DateTime @unique @db.Date
+//   uniqueVisitors Int     @default(0)
+//   totalPageViews Int     @default(0)
+//   avgSessionTime Int     @default(0) // in seconds
+//   bounceRate     Float   @default(0)
+  
+//   @@map("daily_stats")
+// }
+
+model PageView {
+  id          String   @id @default(uuid())
+  date        DateTime @db.Date
+  pagePath    String   @db.VarChar(500)
+  pageTitle   String?  @db.VarChar(200)
+  sessions    Int      @default(0)
+  users       Int      @default(0)
+  pageViews   Int      @default(0)
+  bounceRate  Float?
+  avgSessionDuration Float?
+  source      String?  @db.VarChar(100)
+  medium      String?  @db.VarChar(100)
+  campaign    String?  @db.VarChar(100)
+  country     String?  @db.VarChar(100)
+  city        String?  @db.VarChar(100)
+  deviceCategory String? @db.VarChar(50)
+  browser     String?  @db.VarChar(50)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([date, pagePath])
+  @@map("page_views")
+}
+
+model SiteMetrics {
+  id              String   @id @default(uuid())
+  date            DateTime @db.Date @unique
+  totalUsers      Int      @default(0)
+  newUsers        Int      @default(0)
+  sessions        Int      @default(0)
+  pageViews       Int      @default(0)
+  bounceRate      Float?
+  avgSessionDuration Float?
+  conversions     Int      @default(0)
+  jobApplications Int      @default(0)
+  topPages        Json?    // Store top 10 pages as JSON
+  topSources      Json?    // Store top traffic sources
+  deviceBreakdown Json?    // Mobile/Desktop/Tablet breakdown
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("site_metrics")
+}

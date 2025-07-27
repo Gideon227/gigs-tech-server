@@ -70,6 +70,7 @@ class APIFeatures {
     }
 
     if (queryObj.roleCategory) where.roleCategory = queryObj.roleCategory;
+    if (queryObj.jobStatus) where.jobStatus = queryObj.jobStatus;
 
     // Handle experienceLevel filtering (e.g., ?experienceLevel=senior)
     if (queryObj.experienceLevel) {
@@ -138,20 +139,20 @@ class APIFeatures {
       let postedAfter;
       switch (queryObj.datePosted) {
         case 'today':
-          postedAfter = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          postedAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           break;
         case 'last_3_days':
-          postedAfter = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+          postedAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 3);
           break;
         case 'last_7_days':
-          postedAfter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          postedAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
           break;
         case 'last_15_days':
-          postedAfter = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+          postedAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 15);
           break;
       }
       if (postedAfter) {
-        where.createdAt = { gte: postedAfter };
+        where.postedDate = { gte: postedAfter };
       }
     }
 

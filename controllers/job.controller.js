@@ -125,3 +125,70 @@ exports.getJobAnalytics = async (req, res) => {
     return res.status(500).json({ message: `${error.message} Failed to fetch job analytics` });
   }
 }
+
+// New analytics endpoints
+exports.getDashboardAnalytics = async (req, res) => {
+  try {
+    const data = await analyticsService.getDashboardAnalytics();
+    return res.status(200).json({ status: 'success', data });
+  } catch (error) {
+    console.error('Dashboard analytics error:', error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Failed to fetch dashboard analytics: ${error.message}` 
+    });
+  }
+};
+
+exports.getTrafficSources = async (req, res) => {
+  try {
+    const data = await analyticsService.getTrafficSources();
+    return res.status(200).json({ status: 'success', data });
+  } catch (error) {
+    console.error('Traffic sources error:', error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Failed to fetch traffic sources: ${error.message}` 
+    });
+  }
+};
+
+exports.getGeographicData = async (req, res) => {
+  try {
+    const data = await analyticsService.getGeographicData();
+    return res.status(200).json({ status: 'success', data });
+  } catch (error) {
+    console.error('Geographic data error:', error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Failed to fetch geographic data: ${error.message}` 
+    });
+  }
+};
+
+// Manual sync endpoint (for testing/admin use)
+exports.syncGoogleAnalytics = async (req, res) => {
+  try {
+    const { days = 1 } = req.query;
+    const googleAnalytics = require('../services/googleAnalytics.service');
+    
+    if (days === 'historical') {
+      await googleAnalytics.syncHistoricalData(30);
+    } else {
+      const { subDays } = require('date-fns');
+      const targetDate = subDays(new Date(), parseInt(days));
+      await googleAnalytics.storeDailyMetrics(targetDate);
+    }
+    
+    return res.status(200).json({ 
+      status: 'success', 
+      message: 'Analytics sync completed' 
+    });
+  } catch (error) {
+    console.error('Sync error:', error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Sync failed: ${error.message}` 
+    });
+  }
+};
