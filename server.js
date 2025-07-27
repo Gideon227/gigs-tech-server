@@ -1,6 +1,5 @@
 // server.js
 require('./config/config');
-require('./job/cronServer');
 const http = require('http');
 const app = require('./app');
 const prisma = require('./config/prisma');
