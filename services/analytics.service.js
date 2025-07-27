@@ -131,7 +131,7 @@ exports.getDashboardAnalytics = async (req, res) => {
     const yesterday = subDays(now, 1);
     const monthAgo = subDays(now, 30);
 
-    // Get job analytics (your existing logic)
+    // Get job analytics 
     const jobAnalytics = await this.getJobAnalytics();
 
     // Get website analytics from database
@@ -157,10 +157,10 @@ exports.getDashboardAnalytics = async (req, res) => {
     const topJobPages = await prisma.pageView.findMany({
         where: {
             date: {
-                gte: subDays(now, 7) // Last 7 days
+                gte: subDays(now, 7) 
             },
             pagePath: {
-                contains: '/jobs/' // Assuming your job URLs contain /jobs/
+                contains: '/browse-jobs/' 
             }
         },
         select: {
@@ -194,7 +194,6 @@ exports.getDashboardAnalytics = async (req, res) => {
         : 0;
 
     const result = {
-        // Your existing job analytics
         jobs: jobAnalytics,
         
         // Website analytics
@@ -297,53 +296,53 @@ exports.getTrafficSources = async () => {
     return result;
 };
 
-exports.getGeographicData = async () => {
-    const cacheKey = 'analytics:geographic';
+// exports.getGeographicData = async () => {
+//     const cacheKey = 'analytics:geographic';
     
-    try {
-        const cached = await redisClient.get(cacheKey);
-        if (cached) {
-            return JSON.parse(cached);
-        }
-    } catch (err) {
-        logger.error(`Redis GET error: ${err.message}`);
-    }
+//     try {
+//         const cached = await redisClient.get(cacheKey);
+//         if (cached) {
+//             return JSON.parse(cached);
+//         }
+//     } catch (err) {
+//         logger.error(`Redis GET error: ${err.message}`);
+//     }
 
-    const last30Days = subDays(new Date(), 30);
+//     const last30Days = subDays(new Date(), 30);
     
-    const countries = await prisma.pageView.groupBy({
-        by: ['country'],
-        where: {
-            date: {
-                gte: last30Days
-            },
-            country: {
-                not: null
-            }
-        },
-        _sum: {
-            sessions: true,
-            users: true
-        },
-        orderBy: {
-            _sum: {
-                sessions: 'desc'
-            }
-        },
-        take: 15
-    });
+//     const countries = await prisma.pageView.groupBy({
+//         by: ['country'],
+//         where: {
+//             date: {
+//                 gte: last30Days
+//             },
+//             country: {
+//                 not: null
+//             }
+//         },
+//         _sum: {
+//             sessions: true,
+//             users: true
+//         },
+//         orderBy: {
+//             _sum: {
+//                 sessions: 'desc'
+//             }
+//         },
+//         take: 15
+//     });
 
-    const result = countries.map(country => ({
-        country: country.country,
-        sessions: country._sum.sessions,
-        users: country._sum.users
-    }));
+//     const result = countries.map(country => ({
+//         country: country.country,
+//         sessions: country._sum.sessions,
+//         users: country._sum.users
+//     }));
 
-    try {
-        await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 600);
-    } catch (err) {
-        logger.error(`Redis SET error: ${err.message}`);
-    }
+//     try {
+//         await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 600);
+//     } catch (err) {
+//         logger.error(`Redis SET error: ${err.message}`);
+//     }
 
-    return result;
-};
+//     return result;
+// };

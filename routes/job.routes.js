@@ -21,9 +21,9 @@ router
   .route('/:id/related-jobs')
   .get( jobController.getRelatedJobs);
 
-// router
-//   .route('/admin/analytics')
-//   .get(jobController.getJobAnalytics)
+router
+  .route('/admin/analytics')
+  .get(jobController.getJobAnalytics)
 
 // router
 //   .route('/analytics/dashboard')

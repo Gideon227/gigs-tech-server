@@ -116,15 +116,15 @@ exports.getRelatedJobs = async (req, res) => {
  * GET /api/v1/jobs/analytics
  * Returns job analytics for dashboard charts.
 */
-// exports.getJobAnalytics = async (req, res) => {
-//   try {
-//     const data = await analyticsService.getJobAnalytics();
-//     return res.status(200).json({ status: 'success', data: data })
-//   } catch (error) {
-//     console.error(error)
-//     return res.status(500).json({ message: `${error.message} Failed to fetch job analytics` });
-//   }
-// }
+exports.getJobAnalytics = async (req, res) => {
+  try {
+    const data = await analyticsService.getJobAnalytics();
+    return res.status(200).json({ status: 'success', data: data })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ message: `${error.message} Failed to fetch job analytics` });
+  }
+}
 
 // // New analytics endpoints
 // exports.getDashboardAnalytics = async (req, res) => {

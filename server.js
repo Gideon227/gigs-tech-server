@@ -1,5 +1,5 @@
 // server.js
-require('./config/config');
+require('./config/config')
 const http = require('http');
 const app = require('./app');
 const prisma = require('./config/prisma');
