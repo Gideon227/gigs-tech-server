@@ -2,9 +2,10 @@ const prisma = require('../config/prisma');
 const redisClient = require('../config/redisClient');
 const logger = require('../config/logger');
 const { startOfDay, endOfDay, subDays, format } = require('date-fns');
+const { google } = require('googleapis');
 
 const propertyId = process.env.GA_PROPERTY_ID; // e.g. '123456789'
-const client = new BetaAnalyticsDataClient({
+const auth = new google.auth.GoogleAuth({
   credentials: {
     client_email: process.env.GA_CLIENT_EMAIL,
     private_key: process.env.GA_PRIVATE_KEY.replace(/\\n/g, '\n'),
