@@ -4,24 +4,20 @@ const logger = require('../config/logger');
 const { startOfDay, endOfDay, subDays, format } = require('date-fns');
 const { google } = require('googleapis');
 
-const propertyId  = process.env.GA4_PROPERTY_ID;
+const propertyId  = process.env.GA_PROPERTY_ID;
 const clientEmail = process.env.GA_CLIENT_EMAIL;
-const privateKey = process.env.GA_PRIVATE_KEY;
+const privateKey  = process.env.GA_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
 if (!propertyId || !clientEmail || !privateKey) {
-    logger.error('Missing one of GA_PROPERTY_ID, GA_CLIENT_EMAIL, or GA_PRIVATE_KEY');
-    throw new Error('Google Analytics env vars not set');
+  logger.error('Missing GA4_PROP_ID, GA_CLIENT_EMAIL or GA_PRIVATE_KEY',
+    { propertyId, clientEmail, hasKey: !!privateKey }
+  );
+  throw new Error('Google Analytics env vars not set');
 }
 
 const auth = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: process.env.GA_CLIENT_EMAIL,
-    private_key: process.env.GA_PRIVATE_KEY.replace(/\\n/g, '\n'),
-  },
-});
-const analyticsClient = google.analyticsdata({
-  version: 'v1beta',
-  auth,
+  credentials: { client_email: clientEmail, private_key: privateKey },
+  scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
 });
 
 
@@ -137,24 +133,38 @@ exports.getAnalyticsData = async () => {
     const CACHE_KEY  = 'ga4:weekly_report';
     const CACHE_TTL  = 300;
 
-    const cached = await redisClient.get(CACHE_KEY);
-    if (cached) {
-        logger.debug('GA4: returning cached report');
-        return JSON.parse(cached);
-    }
+    try {
+        // 1) Cache?
+        const cached = await redisClient.get(CACHE_KEY);
+        if (cached) {
+            logger.debug('GA4: returning cached report');
+            return JSON.parse(cached);
+        }
 
-    logger.debug(`GA4: fetching report for property ${propertyId}`);
-    const [response] = await analyticsClient.properties.runReport({
+        const authClient = await auth.getClient();
+        const analytics = google.analyticsdata({
+            version: 'v1beta',
+            auth: authClient,
+        });
+
+        logger.debug(`GA4: fetching report for property ${propertyId}`);
+        const [response] = await analytics.properties.runReport({
         property: `properties/${propertyId}`,
         requestBody: {
             dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
             dimensions: [{ name: 'pagePath' }],
             metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
         },
-    });
+        });
 
-    await redisClient.set(CACHE_KEY, JSON.stringify(response), 'EX', CACHE_TTL);
-    return response;
+        await redisClient.set(CACHE_KEY, JSON.stringify(response), 'EX', CACHE_TTL);
+        logger.debug('GA4: report cached');
+        return response;
+
+    } catch (err) {
+        logger.error('GA4 fetch error in service:', err);
+        throw err;
+    }
 };
 
 
