@@ -2,14 +2,23 @@ const prisma = require('../config/prisma');
 const redisClient = require('../config/redisClient');
 const logger = require('../config/logger');
 const { startOfDay, endOfDay, subDays, format } = require('date-fns');
-// const { BetaAnalyticsDataClient } = require('@google-analytics/data');
-// const googleAnalytics = require('./googleAnalytics.service');
 
+const propertyId = process.env.GA_PROPERTY_ID; // e.g. '123456789'
+const client = new BetaAnalyticsDataClient({
+  credentials: {
+    client_email: process.env.GA_CLIENT_EMAIL,
+    private_key: process.env.GA_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  },
+});
+const analyticsClient = google.analyticsdata({
+  version: 'v1beta',
+  auth,
+});
 
-const CACHE_KEY = 'jobs:analytics';
-const CACHE_TTL = 60;
 
 exports.getJobAnalytics = async (req, res) => {
+    const CACHE_KEY = 'jobs:analytics';
+    const CACHE_TTL = 60;
     try {
         const cached = await redisClient.get(CACHE_KEY);
         if (cached) {
@@ -114,6 +123,30 @@ exports.getJobAnalytics = async (req, res) => {
 
     return result;
 }
+
+exports.getAnalyticsData = async () => {
+    const CACHE_KEY  = 'ga4:weekly_report';
+    const CACHE_TTL  = 300;
+
+    const cached = await redisClient.get(CACHE_KEY);
+    if (cached) {
+        return JSON.parse(cached);
+    }
+
+    const [response] = await analyticsClient.properties.runReport({
+        property: `properties/${propertyId}`,
+        requestBody: {
+        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        dimensions: [{ name: 'pagePath' }],
+        metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
+        },
+    });
+
+    await redisClient.set(CACHE_KEY, JSON.stringify(response), 'EX', CACHE_TTL);
+    return response;
+};
+
+
 
 // exports.getDashboardAnalytics = async (req, res) => {
 //     try {

@@ -126,6 +126,22 @@ exports.getJobAnalytics = async (req, res) => {
   }
 }
 
+exports.getGoogleAnalyticsData = async (req, res) => {
+  try {
+    const data = await analyticsService.getAnalyticsData();
+    return res.status(200).json({
+      status: 'success',
+      data,
+    });
+  } catch (error) {
+    console.error('GA4 fetch error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Could not fetch Google Analytics data.',
+    });
+  }
+};
+
 // // New analytics endpoints
 // exports.getDashboardAnalytics = async (req, res) => {
 //   try {

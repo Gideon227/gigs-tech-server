@@ -25,6 +25,10 @@ router
   .route('/admin/analytics')
   .get(jobController.getJobAnalytics)
 
+router
+  .route('/admin/analytics/users')
+  .get(analyticsController.getGoogleAnalyticsData);
+  
 // router
 //   .route('/analytics/dashboard')
 //   .get(jobController.getDashboardAnalytics)
