@@ -4,7 +4,7 @@ const logger = require('../config/logger');
 const { startOfDay, endOfDay, subDays, format } = require('date-fns');
 const { google } = require('googleapis');
 
-const propertyId = process.env.GA_PROPERTY_ID; // e.g. '123456789'
+const propertyId = process.env.GA_PROPERTY_ID; 
 const auth = new google.auth.GoogleAuth({
   credentials: {
     client_email: process.env.GA_CLIENT_EMAIL,
@@ -126,20 +126,28 @@ exports.getJobAnalytics = async (req, res) => {
 }
 
 exports.getAnalyticsData = async () => {
+
     const CACHE_KEY  = 'ga4:weekly_report';
     const CACHE_TTL  = 300;
 
+    if (!propertyId || !clientEmail || !privateKey) {
+        logger.error('Missing one of GA_PROPERTY_ID, GA_CLIENT_EMAIL, or GA_PRIVATE_KEY');
+        throw new Error('Google Analytics env vars not set');
+    }
+
     const cached = await redisClient.get(CACHE_KEY);
     if (cached) {
+        logger.debug('GA4: returning cached report');
         return JSON.parse(cached);
     }
 
+    logger.debug(`GA4: fetching report for property ${propertyId}`);
     const [response] = await analyticsClient.properties.runReport({
         property: `properties/${propertyId}`,
         requestBody: {
-        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
-        dimensions: [{ name: 'pagePath' }],
-        metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
+            dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+            dimensions: [{ name: 'pagePath' }],
+            metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
         },
     });
 

@@ -138,6 +138,7 @@ exports.getGoogleAnalyticsData = async (req, res) => {
     return res.status(500).json({
       status: 'error',
       message: 'Could not fetch Google Analytics data.',
+      details: error.message,
     });
   }
 };
