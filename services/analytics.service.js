@@ -132,8 +132,8 @@ exports.getJobAnalytics = async (req, res) => {
 }
 
 exports.getAnalyticsData = async () => {
-    const CACHE_KEY = 'ga4:weekly_report';
-    const CACHE_TTL = 300;
+    const CACHE_KEY  = 'ga4:weekly_report';
+    const CACHE_TTL  = 300;
 
     try {
         const cached = await redisClient.get(CACHE_KEY);
@@ -146,27 +146,52 @@ exports.getAnalyticsData = async () => {
         const analytics = google.analyticsdata({
             version: 'v1beta',
             auth: authClient,
+            timeout: 10000, 
         });
 
         logger.debug(`GA4: fetching report for property ${propertyId}`);
+        
         const response = await analytics.properties.runReport({
-        property: `properties/${propertyId}`,
-        requestBody: {
-            dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
-            dimensions: [{ name: 'pagePath' }],
-            metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
-        },
+            property: `properties/${propertyId}`,
+            requestBody: {
+                dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+                dimensions: [{ name: 'pagePath' }],
+                metrics: [
+                    { name: 'screenPageViews' }, 
+                    { name: 'activeUsers' }
+                ],
+                limit: 1000,
+                orderBys: [
+                    {
+                        metric: { metricName: 'screenPageViews' },
+                        desc: true
+                    }
+                ]
+            },
         });
 
-        const report = response.data;
+        const responseData = response.data || response;
+        if (!responseData) {
+            throw new Error('Invalid response from Google Analytics API');
+        }
 
-        await redisClient.set(CACHE_KEY, JSON.stringify(report), 'EX', CACHE_TTL);
-        logger.debug('GA4: report cached');
+        try {
+            await redisClient.set(CACHE_KEY, JSON.stringify(responseData), 'EX', CACHE_TTL);
+            logger.debug('GA4: report cached');
+        } catch (cacheErr) {
+            logger.error('Failed to cache GA4 data:', cacheErr);
+        }
 
-        return report;
+        return responseData;
+
     } catch (err) {
-        logger.error('GA4 fetch error in service:', err);
-        throw err;
+        logger.error('GA4 fetch error in service:', {
+            message: err.message,
+            stack: err.stack,
+            propertyId: propertyId
+        });
+        
+        throw new Error(`Failed to fetch Google Analytics data: ${err.message}`);
     }
 };
 
