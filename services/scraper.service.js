@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 
-export async function logScraperRun(data) {
+exports.logScraperRun = (data) => {
     return prisma.scraperRun.create({ data: {
         totalJobs: data.totalJobs,
         brokenLinks: data.brokenLinks,
@@ -10,7 +10,7 @@ export async function logScraperRun(data) {
     }});
 }
 
-export async function getScraperMetrics(intervalInHours = 24) {
+exports.getScraperMetrics = async (intervalInHours = 24) => {
     const since = new Date(Date.now() - intervalInHours * 3600 * 1000);
     const runs = await prisma.scraperRun.findMany({ where: { runAt: { gte: since } } });
     const total = runs.length;

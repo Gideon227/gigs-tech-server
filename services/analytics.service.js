@@ -63,19 +63,6 @@ exports.getJobAnalytics = async (req, res) => {
         prisma.job.count({ where: { createdAt: { gte: yestStart,   lte: yestEnd },   brokenLink: true } }),
     ]);
 
-    // const chartData = await prisma.$queryRaw`
-    //     SELECT
-    //     DATE_TRUNC('day', "createdAt")::date AS date,
-    //     COUNT(*) AS total,
-    //     COUNT(*) FILTER (WHERE "jobStatus" = 'active')   AS active,
-    //     COUNT(*) FILTER (WHERE "jobStatus" = 'expired')  AS expired,
-    //     COUNT(*) FILTER (WHERE "brokenLink" = true)        AS broken
-    //     FROM "job"
-    //     WHERE "createdAt" >= ${monthAgo} AND "createdAt" <= ${todayEnd}
-    //     GROUP BY date
-    //     ORDER BY date ASC;
-    // `;
-
     const chartData = await prisma.$queryRaw`
         WITH date_series AS (
             SELECT generate_series(
