@@ -2,6 +2,7 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const jobService = require('../services/job.service');
 const analyticsService = require('../services/analytics.service')
+const scraperService = require('../services/scraper.service')
 
 /**
  * @route   GET /api/v1/jobs
@@ -142,6 +143,17 @@ exports.getGoogleAnalyticsData = async (req, res) => {
     });
   }
 };
+
+exports.metrics = async (req, res) => {
+  try {
+    const hours = typeof req.query.hours === 'string' ? parseInt(req.query.hours) : 24;
+    const data = await scraperService.getScraperMetrics(hours);
+    res.status(200).json({ status: 'success', data });
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ message: `${error.message} Failed to fetch metrics` });
+  }
+}
 
 // // New analytics endpoints
 // exports.getDashboardAnalytics = async (req, res) => {

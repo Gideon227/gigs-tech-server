@@ -1,0 +1,24 @@
+const prisma = require('../config/prisma');
+
+export async function logScraperRun(data) {
+    return prisma.scraperRun.create({ data: {
+        totalJobs: data.totalJobs,
+        brokenLinks: data.brokenLinks,
+        ipBlockedCount: data.ipBlockedCount,
+        successful: data.brokenLinks === 0 && data.ipBlockedCount === 0,
+        durationMs: data.durationMs,
+    }});
+}
+
+export async function getScraperMetrics(intervalInHours = 24) {
+    const since = new Date(Date.now() - intervalInHours * 3600 * 1000);
+    const runs = await prisma.scraperRun.findMany({ where: { runAt: { gte: since } } });
+    const total = runs.length;
+    const succeeded = runs.filter(r => r.successful).length;
+    return {
+        totalRuns: total,
+        successRate: total ? (succeeded / total) * 100 : 0,
+        brokenLinksLastRun: runs[total - 1]?.brokenLinks ?? 0,
+        ipBlockedLastRun: runs[total - 1]?.ipBlockedCount ?? 0,
+    };
+}

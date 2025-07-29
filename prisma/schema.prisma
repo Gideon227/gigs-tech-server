@@ -75,6 +75,17 @@ model Job {
   @@map("job")
 }
 
+model ScraperRun {
+  id             String   @id @default(uuid())
+  runAt          DateTime @default(now())
+  successful     Boolean  @default(true)
+  totalJobs      Int      @default(0)
+  brokenLinks    Int      @default(0)
+  ipBlockedCount Int      @default(0)
+  durationMs     Int      @default(0)
+  createdAt      DateTime @default(now())
+}
+
 // model PageView {
 //   id          String   @id @default(uuid())
 //   date        DateTime @db.Date
