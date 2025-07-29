@@ -9,9 +9,11 @@ const clientEmail = process.env.GA_CLIENT_EMAIL;
 const privateKey  = process.env.GA_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
 if (!propertyId || !clientEmail || !privateKey) {
-  logger.error('Missing GA4_PROP_ID, GA_CLIENT_EMAIL or GA_PRIVATE_KEY',
-    { propertyId, clientEmail, hasKey: !!privateKey }
-  );
+  logger.error('Missing Google Analytics env vars', {
+    propertyId,
+    clientEmail,
+    hasPrivateKey: !!privateKey,
+  });
   throw new Error('Google Analytics env vars not set');
 }
 
@@ -130,11 +132,10 @@ exports.getJobAnalytics = async (req, res) => {
 }
 
 exports.getAnalyticsData = async () => {
-    const CACHE_KEY  = 'ga4:weekly_report';
-    const CACHE_TTL  = 300;
+    const CACHE_KEY = 'ga4:weekly_report';
+    const CACHE_TTL = 300;
 
     try {
-        // 1) Cache?
         const cached = await redisClient.get(CACHE_KEY);
         if (cached) {
             logger.debug('GA4: returning cached report');
@@ -148,7 +149,7 @@ exports.getAnalyticsData = async () => {
         });
 
         logger.debug(`GA4: fetching report for property ${propertyId}`);
-        const [response] = await analytics.properties.runReport({
+        const response = await analytics.properties.runReport({
         property: `properties/${propertyId}`,
         requestBody: {
             dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
@@ -157,10 +158,12 @@ exports.getAnalyticsData = async () => {
         },
         });
 
-        await redisClient.set(CACHE_KEY, JSON.stringify(response), 'EX', CACHE_TTL);
-        logger.debug('GA4: report cached');
-        return response;
+        const report = response.data;
 
+        await redisClient.set(CACHE_KEY, JSON.stringify(report), 'EX', CACHE_TTL);
+        logger.debug('GA4: report cached');
+
+        return report;
     } catch (err) {
         logger.error('GA4 fetch error in service:', err);
         throw err;
