@@ -12,7 +12,7 @@ exports.logScraperRun = (data) => {
 
 exports.getScraperMetrics = async (intervalInHours = 24) => {
     const since = new Date(Date.now() - intervalInHours * 3600 * 1000);
-    const runs = await prisma.scraperRun.findMany({ where: { runAt: { gte: since } } });
+    const runs = await prisma.scraperRun.findMany({ where: { createdAt: { gte: since } } });
     const total = runs.length;
     const succeeded = runs.filter(r => r.successful).length;
     return {

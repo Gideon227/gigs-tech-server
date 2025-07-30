@@ -1,131 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// Generate Prisma Client
-generator client {
-  provider = "prisma-client-js"
-}
-
-enum Status {
-  ACTIVE @map("active")
-  EXPIRED @map("expired")
-}
-
-enum WorkSetting {
-    REMOTE @map("remote")
-    ON_SITE @map("onSite")
-    HYBRID @map("hybrid")
-}
-
-enum ApprovalStatus {
-    APPROVED @map("approved")
-    PENDING @map("pending")
-    FAILED @map("failed")
-}
-
-enum JobType {
-    FULL_TIME @map("fullTime")
-    PART_TIME @map("partTime")
-    CONTRACT_TO_HIRE @map("contractToHire")
-    TEMP_CONTRACT @map("tempContract")
-    GIG_WORK @map("gigWork")
-}
-
-enum ExperienceLevel {
-    BEGINNER @map("beginner")
-    INTERMEDIATE @map("intermediate")
-    EXPERIENCED @map("experienced")
-}
-
-// Define the Job model and a Status enum
 model Job {
-  id          String   @id @default(uuid())
-  title       String   @db.VarChar(100)
-  description String?
-  country     String?
-  state       String?
-  city        String?
-  jobType     String
-  salary      String
-  skills      String[]
-  experienceLevel   String?
-  currency    String?
-  applicationUrl    String
-  benefits    String[]
-  approvalStatus String?
-  brokenLink    Boolean     @default(false)
-  jobStatus   String?
-  responsibilities String[]
-  workSettings  String?
-  roleCategory  String?
-  qualifications    String[]
-  companyLogo    String?
-  companyName    String?
-  ipBlocked      Boolean    @default(false)
-  minSalary   Int?
-  maxSalary   Int?
-  postedDate  DateTime?
-  category    String?
-  createdAt   DateTime @default(now()) @map("createdAt")
-  updatedAt   DateTime @updatedAt       @map("updatedAt")
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId            String?   @default("")
+  title            String?   @default("")
+  description      String?   @default("")
+  location         String?   @default("")
+  country          String?   @default("")
+  state            String?   @default("")
+  city             String?   @default("")
+  jobType          String?   @default("fullTime")
+  salary           String?   @default("")
+  skills           String[]  @default([])
+  experienceLevel  String?   @default("experienced")
+  currency         String?   @default("")
+  applicationUrl   String?   @default("")
+  benefits         String[]  @default([])
+  approvalStatus   String?
+  brokenLink       Boolean?  @default(false)
+  jobStatus        String?   @default("active")
+  responsibilities String[]  @default([])
+  workSettings     String?
+  roleCategory     String?   @default("")
+  qualifications   String[]  @default([])
+  companyLogo      String?   @default("")
+  companyName      String?
+  ipBlocked        Boolean?  @default(false)
+  createdAt        DateTime? @default(now()) @map("createdAt") @db.Timestamp(6)
+  updatedAt        DateTime? @default(now()) @updatedAt @map("updatedAt") @db.Timestamp(6)
+  minSalary        Int?      @default(0)
+  maxSalary        Int?      @default(0)
+  postedDate       DateTime? @default(now()) @db.Timestamp(6)
+  category         String?
 
   @@map("job")
 }
 
 model ScraperRun {
-  id             String   @id @default(uuid())
-  runAt          DateTime @default(now())
-  successful     Boolean  @default(true)
-  totalJobs      Int      @default(0)
-  brokenLinks    Int      @default(0)
-  ipBlockedCount Int      @default(0)
-  durationMs     Int      @default(0)
-  createdAt      DateTime @default(now())
+  id               String   @id
+  status           String
+  errorMessage     String?
+  activeScrapers   Int
+  totalJobsScraped Int
+  createdAt        DateTime @default(now())
 }
-
-// model PageView {
-//   id          String   @id @default(uuid())
-//   date        DateTime @db.Date
-//   pagePath    String   @db.VarChar(500)
-//   pageTitle   String?  @db.VarChar(200)
-//   sessions    Int      @default(0)
-//   users       Int      @default(0)
-//   pageViews   Int      @default(0)
-//   bounceRate  Float?
-//   avgSessionDuration Float?
-//   source      String?  @db.VarChar(100)
-//   medium      String?  @db.VarChar(100)
-//   campaign    String?  @db.VarChar(100)
-//   country     String?  @db.VarChar(100)
-//   city        String?  @db.VarChar(100)
-//   deviceCategory String? @db.VarChar(50)
-//   browser     String?  @db.VarChar(50)
-//   createdAt   DateTime @default(now())
-//   updatedAt   DateTime @updatedAt
-
-//   @@unique([date, pagePath])
-//   @@map("page_views")
-// }
-
-// model SiteMetrics {
-//   id              String   @id @default(uuid())
-//   date            DateTime @db.Date @unique
-//   totalUsers      Int      @default(0)
-//   newUsers        Int      @default(0)
-//   sessions        Int      @default(0)
-//   pageViews       Int      @default(0)
-//   bounceRate      Float?
-//   avgSessionDuration Float?
-//   conversions     Int      @default(0)
-//   jobApplications Int      @default(0)
-//   topPages        Json?    // Store top 10 pages as JSON
-//   topSources      Json?    // Store top traffic sources
-//   deviceBreakdown Json?    // Mobile/Desktop/Tablet breakdown
-//   createdAt       DateTime @default(now())
-//   updatedAt       DateTime @updatedAt
-
-//   @@map("site_metrics")
-// }

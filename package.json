@@ -14,7 +14,10 @@
     "cron": "node jobs/cronServer.js",
     "cron:dev": "NODE_ENV=staging nodemon jobs/cronServer.js",
     "sync:historical": "node scripts/syncHistorical.js",
-    "sync:yesterday": "node scripts/syncYesterday.js"
+    "sync:yesterday": "node scripts/syncYesterday.js",
+    "migrate:staging": "dotenv -e .env.staging -- npx prisma migrate dev --name",
+    "generate:staging": "dotenv -e .env.staging -- npx prisma generate",
+    "pull:staging": "dotenv -e .env.staging -- npx prisma db pull"
   },
   "keywords": [],
   "author": "",
@@ -39,6 +42,7 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
+    "dotenv-cli": "^9.0.0",
     "nodemon": "^3.1.10",
     "prisma": "^6.9.0"
   }
