@@ -283,5 +283,5 @@ exports.getAnalyticsData = async () => {
 //         logger.error(`Redis SET error: ${err.message}`);
 //     }
 
-//     return result;
+//     return result
 // };
