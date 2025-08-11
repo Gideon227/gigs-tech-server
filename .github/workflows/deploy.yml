@@ -23,10 +23,10 @@ jobs:
           rsync -avz --delete ./ \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ secrets.BACKEND_DIR }}
 
-
       - name: Install & Restart
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            cd ${{ secrets.BACKEND_DIR }}
             cd /home/ec2-user/backend/
             npm install
             pm2 stop backend || true
