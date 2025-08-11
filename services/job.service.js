@@ -43,11 +43,9 @@ exports.getAllJobs = async (reqQuery) => {
   }
 
   // Build Prisma query options
-  const features = new APIFeatures(reqQuery)
-    .filter()
-    .sort()
-    .limitFields()
-    .paginate();
+  const features = new APIFeatures(reqQuery);
+  await features.filter();
+  features.sort().limitFields().paginate();
   const options = features.build();
 
   const thirtyDaysAgo = new Date();

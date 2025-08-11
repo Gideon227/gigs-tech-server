@@ -90,6 +90,12 @@ class APIFeatures {
                 mode: 'insensitive',
               },
             },
+            {
+              companyName: {
+                contains: keyword,
+                mode: 'insensitive',
+              },
+            },
           ],
         });
       }
