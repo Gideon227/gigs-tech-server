@@ -50,6 +50,18 @@ exports.getAllJobs = async (reqQuery) => {
     .paginate();
   const options = features.build();
 
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  if (!options.where) {
+    options.where = {};
+  }
+
+  options.where.postedDate = {
+    ...options.where.postedDate, 
+    gte: thirtyDaysAgo
+  };
+
   const jobs = await prisma.job.findMany(options);
   const totalJobs = await prisma.job.count({ where: options.where });
 
@@ -148,7 +160,8 @@ exports.getRelatedJobs = async (jobId) => {
   const candidates = await prisma.job.findMany({
     where: {
       id: { not: jobId },
-      roleCategory: currentJob.roleCategory
+      roleCategory: currentJob.roleCategory,
+      postedDate: { gte: thirtyDaysAgo }
     }
   });
 

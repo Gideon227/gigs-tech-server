@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const cors = require('cors');
 const jobRoutes = require('./routes/job.routes');
+const contactRoutes = require('./routes/contact.routes')
 const notFoundHandler = require('./middleware/notFoundHandler');
 const apiErrorHandler = require('./middleware/apiErrorHandler');
 const logger = require('./config/logger');
@@ -35,6 +36,7 @@ app.use(requestId);
 
 // ROUTES
 app.use('/api/v1/jobs', jobRoutes);
+app.use('/api/v1/contact', contactRoutes)
 
 // 404 Handler
 app.use(notFoundHandler);

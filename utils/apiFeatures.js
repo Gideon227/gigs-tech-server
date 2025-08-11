@@ -1,6 +1,38 @@
 // utils/apiFeatures.js
 const { Prisma } = require('@prisma/client');
 
+const prisma = require('../config/prisma')
+
+async function buildLocationFilter(prisma, loc) {
+  // First, get all matching location strings
+  const matches = await prisma.$queryRaw`
+    SELECT DISTINCT country, state, city
+    FROM jobs
+    WHERE similarity(country, ${loc}) > 0.3
+       OR similarity(state, ${loc}) > 0.3
+       OR similarity(city, ${loc}) > 0.3
+  `;
+
+  // Flatten all matches into arrays
+  const countries = [];
+  const states = [];
+  const cities = [];
+
+  matches.forEach(row => {
+    if (row.country) countries.push(row.country);
+    if (row.state) states.push(row.state);
+    if (row.city) cities.push(row.city);
+  });
+
+  const OR = [];
+  if (countries.length) OR.push({ country: { in: countries, mode: 'insensitive' } });
+  if (states.length) OR.push({ state: { in: states, mode: 'insensitive' } });
+  if (cities.length) OR.push({ city: { in: cities, mode: 'insensitive' } });
+
+  return OR.length ? { OR } : {};
+}
+
+
 class APIFeatures {
   /**
    * @param {Object} queryParams  req.query  (e.g. {'salary[gt]': '50000', page: '2', limit: '10' })
@@ -17,13 +49,17 @@ class APIFeatures {
     this.hasSelect = false;
   }
 
-  filter() {
+  async filter() {
     // Copy and exclude special fields
     const queryObj = { ...this.queryParams };
     const excludedFields = ['page', 'sort', 'limit', 'fields'];
     excludedFields.forEach((el) => delete queryObj[el]);
 
     const where = {};
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    where.postedDate = { gte: thirtyDaysAgo };
 
     // Exact match filters
     ['country', 'state', 'city'].forEach((field) => {
@@ -61,12 +97,9 @@ class APIFeatures {
 
     // Handle location filtering
     if (queryObj.location) {
-      const loc = queryObj.location.trim().toLowerCase();
-      where.OR = [
-        { city: { equals: loc, mode: 'insensitive' } },
-        { state: { equals: loc, mode: 'insensitive' } },
-        { country: { equals: loc, mode: 'insensitive' } },
-      ];
+      const loc = queryObj.location.trim();
+      const locationFilter = await buildLocationFilter(prisma, loc);
+      Object.assign(where, locationFilter);
     }
 
     if (queryObj.roleCategory) where.roleCategory = queryObj.roleCategory;

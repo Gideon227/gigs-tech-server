@@ -3,14 +3,15 @@ const { Client } = require('pg');
 require('./config/config')
 
 const client = new Client({
-  host: 'gigs-tech.cty6co862htp.eu-north-1.rds.amazonaws.com',
-  port: 5432,
   user: 'shahen',
-  password: process.env.PG_PASSWORD,
+  host: 'gigs-tech-prod-rds.cbiiywio2rr0.us-east-2.rds.amazonaws.com',
   database: 'gigs-tech',
+  password: 'Zebra8!Moon$',
+  port: 5432,
   ssl: {
     rejectUnauthorized: false,
   },
+  connectionTimeoutMillis: 200000
 });
 
 client.connect()
