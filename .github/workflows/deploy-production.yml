@@ -1,0 +1,40 @@
+name: Deploy Backend to EC2 - Production
+
+on:
+  push:
+    branches: [ production ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.6.0
+        with:
+          ssh-private-key: |
+            echo "${{ secrets.PRODUCTION_SSH_KEY }}" > private_key.pem
+            chmod 600 private_key.pem
+
+      - name: Sync to Server
+        run: |
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -i private_key.pem ec2-user@3.148.249.47 << 'EOF'
+            cd /var/www/backend
+
+            echo "Pulling latest code..."
+              git pull origin main
+
+            echo "📦 Installing dependencies..."
+              npm install
+
+            echo "Running Prisma deploy..."
+              dotenv -e .env.production -- npx prisma migrate deploy
+
+            echo "Restarting app with PM2..."
+              pm2 restart backend || pm2 start npm --name "backend" -- run start
+
+            echo "Deployment complete"
+          EOF
+
