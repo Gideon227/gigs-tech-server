@@ -18,18 +18,18 @@ jobs:
 
       - name: Sync to Server
         run: |
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
             "mkdir -p ${{ secrets.BACKEND_DIR }}"
-          rsync -avz -e "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10" --delete ./ \
+          rsync -avz --delete ./ \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ secrets.BACKEND_DIR }}
 
 
       - name: Install & Restart
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            cd ${{ secrets.BACKEND_DIR }}
-            npm install --production
+            cd /home/ec2-user/backend/
+            npm install
             pm2 stop backend || true
-            pm2 start ecosystem.config.js --env staging
+            pm2 start .ecosystem.config.js --env staging
             pm2 save
           EOF
