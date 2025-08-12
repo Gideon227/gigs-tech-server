@@ -7,7 +7,7 @@ async function buildLocationFilter(prisma, loc) {
   // First, get all matching location strings
   const matches = await prisma.$queryRaw`
     SELECT DISTINCT country, state, city
-    FROM jobs
+    FROM job
     WHERE similarity(country, ${loc}) > 0.3
        OR similarity(state, ${loc}) > 0.3
        OR similarity(city, ${loc}) > 0.3
