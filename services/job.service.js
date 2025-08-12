@@ -92,7 +92,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
         take: options.take,
       });
       totalJobs = await prisma.job.count({ where: options.where });
-      await redis.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
+      await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
     } catch (err) {
       logger.error(`Prisma findMany/count error: ${err.message}`);
       throw err;
