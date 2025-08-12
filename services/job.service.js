@@ -3,6 +3,10 @@ const prisma = require('../config/prisma');
 const APIFeatures = require('../utils/apiFeatures');
 const redisClient = require('../config/redisClient');
 const logger = require('../config/logger');
+const Fuse = require ('fuse.js')
+
+const CANDIDATE_LIMIT = 2000; // max rows to fetch for fuzzy processing
+const CANDIDATE_MULTIPLIER = 10;
 
 /**
  * Build a deterministic Redis key from a base string and query object.
@@ -27,53 +31,152 @@ const invalidateJobsCache = async () => {
 };
 
 
-exports.getAllJobs = async (reqQuery) => {
+exports.getAllJobs = async (reqQuery = {}) => {
   const cacheKey = buildCacheKey('jobs', reqQuery);
 
-  // Try to fetch from Redis
-
+  // Try cache first
   try {
     const cachedData = await redisClient.get(cacheKey);
     if (cachedData) {
       logger.debug(`Redis cache hit: ${cacheKey}`);
       return JSON.parse(cachedData);
-    } 
-  } catch (error) {
-    logger.error(`Redis get error: ${error.message}`)
+    }
+  } catch (err) {
+    logger.error(`Redis get error: ${err.message}`);
   }
 
-  // Build Prisma query options
+  // Build features (filter is async in case you later add async steps)
   const features = new APIFeatures(reqQuery);
   await features.filter();
   features.sort().limitFields().paginate();
   const options = features.build();
 
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const pageLimit = (options._limit && Number(options._limit)) || 10;
+  const candidateFetchLimit = Math.min(CANDIDATE_LIMIT, Math.max(100, pageLimit * CANDIDATE_MULTIPLIER));
 
-  if (!options.where) {
-    options.where = {};
-  }
-
-  options.where.postedDate = {
-    ...options.where.postedDate, 
-    gte: thirtyDaysAgo
+  const candidateQuery = {
+    where: options.where || {},
+    take: candidateFetchLimit,
+    select: options.select || undefined,
+    orderBy: options.orderBy || undefined,
   };
 
-  const jobs = await prisma.job.findMany(options);
-  const totalJobs = await prisma.job.count({ where: options.where });
+  // If select was removed (undefined), Prisma will return all fields
+  let candidates = [];
+  try {
+    candidates = await prisma.job.findMany(candidateQuery);
+  } catch (err) {
+    logger.error(`Prisma findMany error: ${err.message}`);
+    throw err;
+  }
 
+  // If no fuzzy requested, do normal pagination query (use count + findMany with skip/take)
+  const fuzzyEnabled = !!(features.fuzzy && (features.fuzzy.keyword || features.fuzzy.location));
+
+  let jobs = [];
+  let totalJobs = 0;
+
+  if (!fuzzyEnabled) {
+    // Non-fuzzy path: we can rely on Prisma options with skip & take (already in options)
+    try {
+      // Ensure postedDate cap (30 days) similar to your prior logic (if not present)
+      if (!options.where) options.where = {};
+      const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      options.where.postedDate = { ...(options.where.postedDate || {}), gte: thirtyDaysAgo };
+
+      jobs = await prisma.job.findMany({
+        where: options.where,
+        orderBy: options.orderBy,
+        select: options.select,
+        skip: options.skip,
+        take: options.take,
+      });
+      totalJobs = await prisma.job.count({ where: options.where });
+      await redis.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
+    } catch (err) {
+      logger.error(`Prisma findMany/count error: ${err.message}`);
+      throw err;
+    }
+  } else {
+
+    try {
+      // Build fuse keys with weights
+      const fuseKeys = [];
+      if (features.fuzzy.keyword) {
+        fuseKeys.push({ name: 'title', weight: 0.6 });
+        fuseKeys.push({ name: 'description', weight: 0.3 });
+        fuseKeys.push({ name: 'companyName', weight: 0.1 });
+      }
+      if (features.fuzzy.location) {
+        // lower weights for location so keyword relevance remains primary
+        fuseKeys.push({ name: 'city', weight: 0.35 });
+        fuseKeys.push({ name: 'state', weight: 0.25 });
+        fuseKeys.push({ name: 'country', weight: 0.2 });
+      }
+
+      // If no candidates returned, short-circuit
+      if (!candidates || candidates.length === 0) {
+        jobs = [];
+        totalJobs = 0;
+      } else {
+        // Configure Fuse
+        const fuse = new Fuse(candidates, {
+          keys: fuseKeys,
+          threshold: 0.45, // moderate fuzziness; tune as needed
+          ignoreLocation: true,
+          includeScore: true,
+          useExtendedSearch: false,
+        });
+
+        // Build composite search string
+        const searchTerms = [];
+        if (features.fuzzy.keyword) searchTerms.push(features.fuzzy.keyword);
+        if (features.fuzzy.location) searchTerms.push(features.fuzzy.location);
+        const compositeSearch = searchTerms.join(' ').trim();
+
+        // Run search (if compositeSearch empty, treat all candidates as matched with score 0)
+        const fuseResults = compositeSearch ? fuse.search(compositeSearch) : candidates.map(c => ({ item: c, score: 0 }));
+
+        // Map to items with numeric score (fuse score can be undefined in some cases)
+        const scored = fuseResults.map(r => ({ item: r.item, score: typeof r.score === 'number' ? r.score : 0 }));
+
+        // Sort ascending by score, then fallback to createdAt desc
+        scored.sort((a, b) => {
+          if (a.score !== b.score) return a.score - b.score; // ascending: best (smallest) first
+          const ta = new Date(a.item.createdAt || 0).getTime();
+          const tb = new Date(b.item.createdAt || 0).getTime();
+          return tb - ta; // newer first
+        });
+
+        // Pagination (cast options._page/_limit to Number for safety)
+        const page = Number(options._page) || 1;
+        const limit = Number(options._limit) || 10;
+        totalJobs = scored.length;
+
+        const start = (page - 1) * limit;
+        const end = start + limit;
+
+        // Slice and extract items
+        const pageSlice = scored.slice(start, end).map(x => x.item);
+        jobs = pageSlice;
+      }
+    } catch (err) {
+      logger.error(`Fuzzy search error: ${err.message}`);
+      throw err;
+    }
+  }
+
+  // Cache the payload (short TTL)
   const payloadToCache = { jobs, totalJobs };
-
   try {
     await redisClient.set(cacheKey, JSON.stringify(payloadToCache), 'EX', 60);
     await redisClient.sadd('jobs:keys', cacheKey);
     logger.debug(`Redis cache set: ${cacheKey}`);
-  } catch (error) {
-    logger.error(`Redis set error: ${error.message}`)
+  } catch (err) {
+    logger.error(`Redis set error: ${err.message}`);
   }
 
-  return {jobs, totalJobs};
+  return { jobs, totalJobs };
 };
 
 exports.getJobsLength = async () => {

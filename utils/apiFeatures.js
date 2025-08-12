@@ -1,37 +1,7 @@
 // utils/apiFeatures.js
 const { Prisma } = require('@prisma/client');
-
+const Fuse = require('fuse.js')
 const prisma = require('../config/prisma')
-
-async function buildLocationFilter(prisma, loc) {
-  // First, get all matching location strings
-  const matches = await prisma.$queryRaw`
-    SELECT DISTINCT country, state, city
-    FROM job
-    WHERE similarity(country, ${loc}) > 0.3
-       OR similarity(state, ${loc}) > 0.3
-       OR similarity(city, ${loc}) > 0.3
-  `;
-
-  // Flatten all matches into arrays
-  const countries = [];
-  const states = [];
-  const cities = [];
-
-  matches.forEach(row => {
-    if (row.country) countries.push(row.country);
-    if (row.state) states.push(row.state);
-    if (row.city) cities.push(row.city);
-  });
-
-  const OR = [];
-  if (countries.length) OR.push({ country: { in: countries, mode: 'insensitive' } });
-  if (states.length) OR.push({ state: { in: states, mode: 'insensitive' } });
-  if (cities.length) OR.push({ city: { in: cities, mode: 'insensitive' } });
-
-  return OR.length ? { OR } : {};
-}
-
 
 class APIFeatures {
   /**
@@ -47,6 +17,11 @@ class APIFeatures {
       // take: 10,
     };
     this.hasSelect = false;
+    this.fuzzy = {
+      keyword: null,
+      location: null,
+      enabled: false,
+    };
   }
 
   async filter() {
@@ -73,8 +48,11 @@ class APIFeatures {
 
     // Keyword search across title and description
     if (queryObj.keyword) {
-      const keyword = queryObj.keyword.trim();
+      const keyword = String(queryObj.keyword).trim();
       if (keyword.length > 0) {
+        this.fuzzy.keyword = keyword;
+        this.fuzzy.enabled = true;
+
         where.AND = where.AND || [];
         where.AND.push({
           OR: [
@@ -103,9 +81,21 @@ class APIFeatures {
 
     // Handle location filtering
     if (queryObj.location) {
-      const loc = queryObj.location.trim();
-      const locationFilter = await buildLocationFilter(prisma, loc);
-      Object.assign(where, locationFilter);
+      const loc = String(queryObj.location).trim();
+      if (loc.length > 0) {
+        this.fuzzy.location = loc;
+        this.fuzzy.enabled = true;
+
+        // Broad OR contains filter to reduce candidate set
+        where.AND = where.AND || [];
+        where.AND.push({
+          OR: [
+            { country: { contains: loc, mode: 'insensitive' } },
+            { state: { contains: loc, mode: 'insensitive' } },
+            { city: { contains: loc, mode: 'insensitive' } },
+          ],
+        });
+      }
     }
 
     if (queryObj.roleCategory) where.roleCategory = queryObj.roleCategory;
