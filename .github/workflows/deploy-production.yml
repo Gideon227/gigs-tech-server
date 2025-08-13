@@ -8,7 +8,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Get code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
       - name: Setup SSH
@@ -16,7 +16,12 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.PRODUCTION_SSH_KEY }}
 
-      - name: Sync to Server
+      - name: Test SSH Connection
+        run: |
+          echo "Testing SSH connection..."
+          ssh -v -o StrictHostKeyChecking=no ec2-user@3.148.249.47 "echo '✅ SSH connected'"
+
+      - name: Deploy
         run: |
           ssh -o StrictHostKeyChecking=no ec2-user@3.148.249.47 << 'EOF'
             cd /var/www/backend
