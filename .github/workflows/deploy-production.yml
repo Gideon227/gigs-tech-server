@@ -19,11 +19,11 @@ jobs:
       - name: Test SSH Connection
         run: |
           echo "Testing SSH connection..."
-          ssh -v -o StrictHostKeyChecking=no ec2-user@3.148.249.47 "echo 'SSH connected'"
+          ssh -v -o StrictHostKeyChecking=no ec2-user@3.132.58.64 "echo 'SSH connected'"
 
       - name: Deploy
         run: |
-          ssh -o StrictHostKeyChecking=no ec2-user@3.148.249.47 << 'EOF'
+          ssh -o StrictHostKeyChecking=no ec2-user@3.132.58.64 << 'EOF'
             cd /var/www/backend
 
             echo "Pulling latest code..."
