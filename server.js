@@ -5,6 +5,7 @@ const app = require('./app');
 const prisma = require('./config/prisma');
 const logger = require('./config/logger');
 const { port, env } = require('./config/config');
+const cronJobs = require('./services/cronJob')
 
 const startServer = async () => {
   try {

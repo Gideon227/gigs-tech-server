@@ -1,4 +1,3 @@
-// services/job.service.js
 const prisma = require('../config/prisma');
 const APIFeatures = require('../utils/apiFeatures');
 const redisClient = require('../config/redisClient');
@@ -83,6 +82,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
       if (!options.where) options.where = {};
       const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       options.where.postedDate = { ...(options.where.postedDate || {}), gte: thirtyDaysAgo };
+      options.where.jobStatus =  { equals: "active" };
 
       jobs = await prisma.job.findMany({
         where: options.where,
@@ -98,7 +98,6 @@ exports.getAllJobs = async (reqQuery = {}) => {
       throw err;
     }
   } else {
-
     try {
       // Build fuse keys with weights
       const fuseKeys = [];
@@ -114,6 +113,13 @@ exports.getAllJobs = async (reqQuery = {}) => {
         fuseKeys.push({ name: 'country', weight: 0.2 });
       }
 
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      candidates = candidates.filter(job =>
+        new Date(job.createdAt) >= thirtyDaysAgo &&
+        job.jobStatus === 'active'
+      );
+
       // If no candidates returned, short-circuit
       if (!candidates || candidates.length === 0) {
         jobs = [];
@@ -122,7 +128,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
         // Configure Fuse
         const fuse = new Fuse(candidates, {
           keys: fuseKeys,
-          threshold: 0.45, // moderate fuzziness; tune as needed
+          threshold: 0.45,
           ignoreLocation: true,
           includeScore: true,
           useExtendedSearch: false,

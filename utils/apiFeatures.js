@@ -1,4 +1,3 @@
-// utils/apiFeatures.js
 const { Prisma } = require('@prisma/client');
 const Fuse = require('fuse.js')
 const prisma = require('../config/prisma')
@@ -222,7 +221,7 @@ class APIFeatures {
         }
       });
     } else {
-      this.options.orderBy = [{ createdAt: 'desc' }];
+      this.options.orderBy = [{ postedDate: 'desc' }];
     }
     return this;
   }
