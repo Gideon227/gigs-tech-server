@@ -75,22 +75,26 @@ exports.getAllJobs = async (reqQuery = {}) => {
   let jobs = [];
   let totalJobs = 0;
 
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
   if (!fuzzyEnabled) {
     // Non-fuzzy path: we can rely on Prisma options with skip & take (already in options)
     try {
-      // Ensure postedDate cap (30 days) similar to your prior logic (if not present)
-      if (!options.where) options.where = {};
-      const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      options.where.postedDate = { ...(options.where.postedDate || {}), gte: thirtyDaysAgo };
-      options.where.jobStatus =  { equals: "active" };
-
       jobs = await prisma.job.findMany({
-        where: options.where,
-        orderBy: options.orderBy,
+        where: {
+          ...options.where,
+          postedDate: { gte: thirtyDaysAgo },
+          jobStatus: { equals: "active" },
+        },
+        orderBy: [
+          { postedDate: "desc" } 
+        ],
         select: options.select,
         skip: options.skip,
         take: options.take,
       });
+
       totalJobs = await prisma.job.count({ where: options.where });
       await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
     } catch (err) {
@@ -113,10 +117,8 @@ exports.getAllJobs = async (reqQuery = {}) => {
         fuseKeys.push({ name: 'country', weight: 0.2 });
       }
 
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       candidates = candidates.filter(job =>
-        new Date(job.createdAt) >= thirtyDaysAgo &&
+        new Date(job.postedDate) >= thirtyDaysAgo &&
         job.jobStatus === 'active'
       );
 
