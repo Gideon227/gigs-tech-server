@@ -213,18 +213,22 @@ class APIFeatures {
     if (this.queryParams.sort) {
       const sortBy = this.queryParams.sort.split(',');
       this.options.orderBy = sortBy.map((field) => {
-        if (field === 'datePosted') field = 'postedDate';
+        let direction = 'asc';
+
         if (field.startsWith('-')) {
-          return { [field.slice(1)]: 'desc' };
-        } else {
-          return { [field]: 'asc' };
+          direction = 'desc';
+          field = field.slice(1); // remove '-'
         }
+
+        if (field === 'datePosted') field = 'postedDate';
+        return { [field]: direction };
       });
     } else {
       this.options.orderBy = [{ postedDate: 'desc' }];
     }
     return this;
   }
+
 
   limitFields() {
     if (this.queryParams.fields) {
