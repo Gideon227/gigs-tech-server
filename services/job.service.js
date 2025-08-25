@@ -118,9 +118,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
         take: options.take,
       });
 
-      jobs = deduplicateJobs(jobs);
-      totalJobs = jobs.length
-      // totalJobs = await prisma.job.count({ where: options.where });
+      totalJobs = await prisma.job.count({ where: options.where });
       await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
     } catch (err) {
       logger.error(`Prisma findMany/count error: ${err.message}`);
@@ -128,6 +126,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
     }
   } else {
     try {
+      // Build fuse keys with weights
       const fuseKeys = [];
       if (features.fuzzy.keyword) {
         fuseKeys.push({ name: 'title', weight: 0.6 });
@@ -183,7 +182,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
         // Pagination (cast options._page/_limit to Number for safety)
         const page = Number(options._page) || 1;
         const limit = Number(options._limit) || 10;
-        // totalJobs = scored.length;
+        totalJobs = scored.length;
 
         const start = (page - 1) * limit;
         const end = start + limit;
@@ -191,9 +190,6 @@ exports.getAllJobs = async (reqQuery = {}) => {
         // Slice and extract items
         const pageSlice = scored.slice(start, end).map(x => x.item);
         jobs = pageSlice;
-        totalJobs = jobs.length
-
-        jobs = deduplicateJobs(jobs);
       }
     } catch (err) {
       logger.error(`Fuzzy search error: ${err.message}`);
@@ -210,7 +206,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
   } catch (err) {
     logger.error(`Redis set error: ${err.message}`);
   }
-  
+
   return { jobs, totalJobs };
 };
 
