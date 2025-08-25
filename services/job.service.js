@@ -128,7 +128,6 @@ exports.getAllJobs = async (reqQuery = {}) => {
     }
   } else {
     try {
-      // Build fuse keys with weights
       const fuseKeys = [];
       if (features.fuzzy.keyword) {
         fuseKeys.push({ name: 'title', weight: 0.6 });
