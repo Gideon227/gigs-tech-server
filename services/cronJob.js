@@ -5,7 +5,7 @@ const logger = require('../config/logger');
 // Run every hour at minute 0
 cron.schedule('0 */12 * * *', async () => {
   try {
-    const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const cutoffTime = new Date(Date.now() - 36 * 60 * 60 * 1000);
 
     const result = await prisma.job.updateMany({
       where: {

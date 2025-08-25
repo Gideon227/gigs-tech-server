@@ -33,6 +33,29 @@ const invalidateJobsCache = async () => {
 exports.getAllJobs = async (reqQuery = {}) => {
   const cacheKey = buildCacheKey('jobs', reqQuery);
 
+  const deduplicateJobs = (jobs) => {
+    const seen = new Set();
+    return jobs.filter(job => {
+      const key = [
+        job.title?.trim().toLowerCase(),
+        job.description?.trim().toLowerCase(),
+        (job.skills || []).slice().sort().join('|'),
+        job.country?.trim().toLowerCase(),
+        job.state?.trim().toLowerCase(),
+        job.city?.trim().toLowerCase(),
+        job.minSalary,
+        job.maxSalary
+      ].join('::'); // unique composite key
+
+      if (seen.has(key)) {
+        return false; // duplicate
+      }
+      seen.add(key);
+      return true; // keep first occurrence
+    });
+  }
+
+
   // Try cache first
   try {
     const cachedData = await redisClient.get(cacheKey);
@@ -95,7 +118,9 @@ exports.getAllJobs = async (reqQuery = {}) => {
         take: options.take,
       });
 
-      totalJobs = await prisma.job.count({ where: options.where });
+      jobs = deduplicateJobs(jobs);
+      totalJobs = jobs.length
+      // totalJobs = await prisma.job.count({ where: options.where });
       await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
     } catch (err) {
       logger.error(`Prisma findMany/count error: ${err.message}`);
@@ -159,7 +184,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
         // Pagination (cast options._page/_limit to Number for safety)
         const page = Number(options._page) || 1;
         const limit = Number(options._limit) || 10;
-        totalJobs = scored.length;
+        // totalJobs = scored.length;
 
         const start = (page - 1) * limit;
         const end = start + limit;
@@ -167,6 +192,9 @@ exports.getAllJobs = async (reqQuery = {}) => {
         // Slice and extract items
         const pageSlice = scored.slice(start, end).map(x => x.item);
         jobs = pageSlice;
+        totalJobs = jobs.length
+
+        jobs = deduplicateJobs(jobs);
       }
     } catch (err) {
       logger.error(`Fuzzy search error: ${err.message}`);
@@ -183,7 +211,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
   } catch (err) {
     logger.error(`Redis set error: ${err.message}`);
   }
-
+  
   return { jobs, totalJobs };
 };
 
