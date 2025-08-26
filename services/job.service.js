@@ -114,7 +114,13 @@ exports.getAllJobs = async (reqQuery = {}) => {
         take: options.take,
       });
 
-      totalJobs = deduplicateJobs(jobs).length;
+      totalJobs = await prisma.job.count({
+        where: {
+          ...options.where,
+          postedDate: { gte: thirtyDaysAgo },
+          jobStatus: { equals: "active" },
+        },
+      });
       await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
     } catch (err) {
       logger.error(`Prisma findMany/count error: ${err.message}`);
@@ -178,7 +184,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
         // Pagination (cast options._page/_limit to Number for safety)
         const page = Number(options._page) || 1;
         const limit = Number(options._limit) || 10;
-        totalJobs = deduplicateJobs(scored).length;
+        totalJobs = scored.length;
 
         const start = (page - 1) * limit;
         const end = start + limit;
