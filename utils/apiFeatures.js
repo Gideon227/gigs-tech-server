@@ -1,321 +1,285 @@
-const prisma = require('../config/prisma');
-const APIFeatures = require('../utils/apiFeatures');
-const redisClient = require('../config/redisClient');
-const logger = require('../config/logger');
-const Fuse = require ('fuse.js')
+const { Prisma } = require('@prisma/client');
+const Fuse = require('fuse.js')
+const prisma = require('../config/prisma')
 
-const CANDIDATE_LIMIT = 2000; // max rows to fetch for fuzzy processing
-const CANDIDATE_MULTIPLIER = 10;
-
-/**
- * Build a deterministic Redis key from a base string and query object.
- * e.g. baseKey = 'jobs', queryObject = { page: '2', status: 'open' }
- * → 'jobs:page:2|status:open'
- */
-const buildCacheKey = (baseKey, queryObject) => {
-  const sortedKeys = Object.keys(queryObject)
-    .sort()
-    .map((key) => `${key}:${queryObject[key]}`)
-    .join('|');
-  return `${baseKey}:${sortedKeys}`;
-};
-
-const invalidateJobsCache = async () => {
-  const keys = await redisClient.smembers('jobs:keys');
-  if (keys.length) {
-    await redisClient.del(...keys);
-    await redisClient.del('jobs:keys');
-    logger.debug(`Redis cache invalidated keys: ${keys}`);
-  }
-};
-
-
-exports.getAllJobs = async (reqQuery = {}) => {
-  const cacheKey = buildCacheKey('jobs', reqQuery);
-
-  // Try cache first
-  try {
-    const cachedData = await redisClient.get(cacheKey);
-    if (cachedData) {
-      logger.debug(`Redis cache hit: ${cacheKey}`);
-      return JSON.parse(cachedData);
-    }
-  } catch (err) {
-    logger.error(`Redis get error: ${err.message}`);
+class APIFeatures {
+  /**
+   * @param {Object} queryParams  req.query  (e.g. {'salary[gt]': '50000', page: '2', limit: '10' })
+   */
+  constructor(queryParams) {
+    this.queryParams = { ...queryParams };
+    this.options = {
+      where: {},
+      orderBy: [],
+      select: {},
+      // skip: 0,
+      // take: 10,
+    };
+    this.hasSelect = false;
+    this.fuzzy = {
+      keyword: null,
+      location: null,
+      enabled: false,
+    };
   }
 
-  // Build features (filter is async in case you later add async steps)
-  const features = new APIFeatures(reqQuery);
-  await features.filter();
-  features.sort().limitFields().paginate();
-  const options = features.build();
+  async filter() {
+    // Copy and exclude special fields
+    const queryObj = { ...this.queryParams };
+    const excludedFields = ['page', 'sort', 'limit', 'fields'];
+    excludedFields.forEach((el) => delete queryObj[el]);
 
-  const pageLimit = (options._limit && Number(options._limit)) || 10;
-  const candidateFetchLimit = Math.min(CANDIDATE_LIMIT, Math.max(100, pageLimit * CANDIDATE_MULTIPLIER));
+    const where = {};
 
-  const candidateQuery = {
-    where: options.where || {},
-    take: candidateFetchLimit,
-    select: options.select || undefined,
-    orderBy: options.orderBy || undefined,
-  };
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    where.postedDate = { gte: thirtyDaysAgo };
 
-  // If select was removed (undefined), Prisma will return all fields
-  let candidates = [];
-  try {
-    candidates = await prisma.job.findMany(candidateQuery);
-  } catch (err) {
-    logger.error(`Prisma findMany error: ${err.message}`);
-    throw err;
-  }
-
-  // If no fuzzy requested, do normal pagination query (use count + findMany with skip/take)
-  const fuzzyEnabled = !!(features.fuzzy && (features.fuzzy.keyword || features.fuzzy.location));
-
-  let jobs = [];
-  let totalJobs = 0;
-
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-  if (!fuzzyEnabled) {
-    // Non-fuzzy path: we can rely on Prisma options with skip & take (already in options)
-    try {
-      jobs = await prisma.job.findMany({
-        where: {
-          ...options.where,
-          postedDate: { gte: thirtyDaysAgo },
-          jobStatus: { equals: "active" },
-        },
-        orderBy: [
-          { postedDate: "desc" } 
-        ],
-        select: options.select,
-        skip: options.skip,
-        take: options.take,
-      });
-
-      totalJobs = await prisma.job.count({ where: options.where });
-      await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
-    } catch (err) {
-      logger.error(`Prisma findMany/count error: ${err.message}`);
-      throw err;
-    }
-  } else {
-    try {
-      // Build fuse keys with weights
-      const fuseKeys = [];
-      if (features.fuzzy.keyword) {
-        fuseKeys.push({ name: 'title', weight: 0.6 });
-        fuseKeys.push({ name: 'description', weight: 0.3 });
-        fuseKeys.push({ name: 'companyName', weight: 0.1 });
+    // Exact match filters
+    ['country', 'state', 'city'].forEach((field) => {
+      if (queryObj[field]) {
+        where[field] = {
+          equals: queryObj[field].trim(),
+          mode: 'insensitive',
+        };
       }
-      if (features.fuzzy.location) {
-        // lower weights for location so keyword relevance remains primary
-        fuseKeys.push({ name: 'city', weight: 0.35 });
-        fuseKeys.push({ name: 'state', weight: 0.25 });
-        fuseKeys.push({ name: 'country', weight: 0.2 });
+    });
+
+    // Keyword search across title and description
+    if (queryObj.keyword) {
+      const keyword = String(queryObj.keyword).trim();
+      if (keyword.length > 0) {
+        this.fuzzy.keyword = keyword;
+        this.fuzzy.enabled = true;
+
+        where.AND = where.AND || [];
+        where.AND.push({
+          OR: [
+            {
+              title: {
+                contains: keyword,
+                mode: 'insensitive',
+              },
+            },
+            {
+              description: {
+                contains: keyword,
+                mode: 'insensitive',
+              },
+            },
+            {
+              companyName: {
+                contains: keyword,
+                mode: 'insensitive',
+              },
+            },
+          ],
+        });
       }
+    }
 
-      candidates = candidates.filter(job =>
-        new Date(job.postedDate) >= thirtyDaysAgo &&
-        job.jobStatus === 'active'
-      );
+    // Handle location filtering
+    if (queryObj.location) {
+      const loc = String(queryObj.location).trim();
+      if (loc.length > 0) {
+        this.fuzzy.location = loc;
+        this.fuzzy.enabled = true;
 
-      // If no candidates returned, short-circuit
-      if (!candidates || candidates.length === 0) {
-        jobs = [];
-        totalJobs = 0;
+        // Broad OR contains filter to reduce candidate set
+        where.AND = where.AND || [];
+        where.AND.push({
+          OR: [
+            { country: { contains: loc, mode: 'insensitive' } },
+            { state: { contains: loc, mode: 'insensitive' } },
+            { city: { contains: loc, mode: 'insensitive' } },
+          ],
+        });
+      }
+    }
+
+    if (queryObj.roleCategory) where.roleCategory = queryObj.roleCategory;
+    if (queryObj.jobStatus) where.jobStatus = queryObj.jobStatus;
+
+    // Handle experienceLevel filtering (e.g., ?experienceLevel=senior)
+    if (queryObj.experienceLevel) {
+      where.experienceLevel = queryObj.experienceLevel;
+    }
+
+    // For skills (Array column in DB)
+    if (queryObj.skills) {
+      if (Array.isArray(queryObj.skills)) {
+        where.skills = { hasSome: queryObj.skills };
+      } else if (typeof queryObj.skills === 'string' && queryObj.skills.includes(',')) {
+        where.skills = { hasSome: queryObj.skills.split(',') };
       } else {
-        // Configure Fuse
-        const fuse = new Fuse(candidates, {
-          keys: fuseKeys,
-          threshold: 0.45,
-          ignoreLocation: true,
-          includeScore: true,
-          useExtendedSearch: false,
-        });
-
-        // Build composite search string
-        const searchTerms = [];
-        if (features.fuzzy.keyword) searchTerms.push(features.fuzzy.keyword);
-        if (features.fuzzy.location) searchTerms.push(features.fuzzy.location);
-        const compositeSearch = searchTerms.join(' ').trim();
-
-        // Run search (if compositeSearch empty, treat all candidates as matched with score 0)
-        const fuseResults = compositeSearch ? fuse.search(compositeSearch) : candidates.map(c => ({ item: c, score: 0 }));
-
-        // Map to items with numeric score (fuse score can be undefined in some cases)
-        const scored = fuseResults.map(r => ({ item: r.item, score: typeof r.score === 'number' ? r.score : 0 }));
-
-        // Sort ascending by score, then fallback to createdAt desc
-        scored.sort((a, b) => {
-          if (a.score !== b.score) return a.score - b.score; // ascending: best (smallest) first
-          const ta = new Date(a.item.createdAt || 0).getTime();
-          const tb = new Date(b.item.createdAt || 0).getTime();
-          return tb - ta; // newer first
-        });
-
-        // Pagination (cast options._page/_limit to Number for safety)
-        const page = Number(options._page) || 1;
-        const limit = Number(options._limit) || 10;
-        totalJobs = scored.length;
-
-        const start = (page - 1) * limit;
-        const end = start + limit;
-
-        // Slice and extract items
-        const pageSlice = scored.slice(start, end).map(x => x.item);
-        jobs = pageSlice;
+        where.skills = { has: queryObj.skills };
       }
-    } catch (err) {
-      logger.error(`Fuzzy search error: ${err.message}`);
-      throw err;
     }
+
+    // For jobType (Single string column in DB)
+    // if (queryObj.jobType) {
+    //   where.jobType = queryObj.jobType;
+    // }
+    if (queryObj.jobType) {
+      if (Array.isArray(queryObj.jobType)) {
+        where.jobType = { in: queryObj.jobType };
+      } else {
+        where.jobType = { equals: queryObj.jobType };
+      }
+    }
+
+    // For workSettings (Single string column in DB)
+    // if (queryObj.workSettings) {
+    //   where.workSettings = queryObj.workSettings;
+    // }
+
+    if (queryObj.workSettings) {
+      if (Array.isArray(queryObj.workSettings)) {
+        where.workSettings = { in: queryObj.workSettings };
+      } else {
+        where.workSettings = { equals: queryObj.workSettings };
+      }
+    }
+
+
+    // Boolean fields (e.g. ?isActive=true)
+    const booleanFields = ['isActive'];
+    booleanFields.forEach((key) => {
+      if (queryObj[key] !== undefined) {
+        where[key] = queryObj[key] === 'true';
+      }
+    });
+
+    // Salary Range
+    // Handle salary range (e.g., ?minSalary=30000&maxSalary=100000)
+    if (queryObj.minSalary || queryObj.maxSalary) {
+      if (queryObj.minSalary !== undefined && queryObj.minSalary !== null && queryObj.minSalary !== '') {
+        where.minSalary = { gte: parseFloat(queryObj.minSalary) };
+      }
+      if (queryObj.maxSalary !== undefined && queryObj.maxSalary !== null && queryObj.maxSalary !== '') {
+        where.maxSalary = { lte: parseFloat(queryObj.maxSalary) };
+      }
+    }
+
+     // Date posted logic
+    if (queryObj.datePosted) {
+      const now = new Date();
+      let postedAfter;
+      switch (queryObj.datePosted) {
+        case 'today':
+          postedAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          break;
+        case 'last_3_days':
+          postedAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 3);
+          break;
+        case 'last_7_days':
+          postedAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+          break;
+        case 'last_15_days':
+          postedAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 15);
+          break;
+      }
+      if (postedAfter) {
+        where.postedDate = { gte: postedAfter };
+      }
+    }
+
+    // Build Prisma where clause
+    // For comparators: salary[gt]=50000 → { salary: { gt: 50000 } }
+    Object.keys(queryObj).forEach((field) => {
+      const value = queryObj[field];
+      const match = field.match(/(\w+)\[(gte|gt|lte|lt|ne)\]/);
+      if (match) {
+        const key = match[1];
+        const operator = match[2];
+        const opMap = { gt: 'gt', gte: 'gte', lt: 'lt', lte: 'lte', ne: 'not' };
+
+        if (!where[key]) where[key] = {};
+
+        if (opMap[operator] === 'not') {
+          where[key] = { not: this._parseValue(key, value) };
+        } else {
+          where[key][opMap[operator]] = this._parseValue(key, value);
+        }
+      }
+    });
+
+    this.options.where = where;
+
+    return this;
   }
 
-  // Cache the payload (short TTL)
-  const payloadToCache = { jobs, totalJobs };
-  try {
-    await redisClient.set(cacheKey, JSON.stringify(payloadToCache), 'EX', 60);
-    await redisClient.sadd('jobs:keys', cacheKey);
-    logger.debug(`Redis cache set: ${cacheKey}`);
-  } catch (err) {
-    logger.error(`Redis set error: ${err.message}`);
+  sort() {
+    if (this.queryParams.sort) {
+      const sortBy = this.queryParams.sort.split(',');
+      this.options.orderBy = sortBy.map((field) => {
+        let direction = 'asc';
+
+        if (field.startsWith('-')) {
+          direction = 'desc';
+          field = field.slice(1); // remove '-'
+        }
+
+        if (field === 'datePosted') field = 'postedDate';
+        return { [field]: direction };
+      });
+    } else {
+      this.options.orderBy = [{ postedDate: 'desc' }];
+    }
+    return this;
   }
 
-  return { jobs, totalJobs };
-};
 
-exports.getJobsLength = async () => {
-  const total = await prisma.job.count({
-    where: { jobStatus: "active" }, 
-  });
-  return total;
+  limitFields() {
+    if (this.queryParams.fields) {
+      // e.g. ?fields=title,company,salary → select: { title: true, company: true, salary: true }
+      const fields = this.queryParams.fields.split(',');
+      fields.forEach((f) => {
+        this.options.select[f] = true;
+      });
+      this.hasSelect = true;
+    }
+    return this;
+  }
+
+  paginate() {
+    const page = parseInt(this.queryParams.page, 10) || 1;
+    const limit = parseInt(this.queryParams.limit, 10) || 10;
+    const skip = (page - 1) * limit;
+
+    this.options.skip = skip;
+    this.options.take = limit;
+    return this;
+  }
+
+  /**
+   * Parse a string value into the correct type based on field name.
+   * - If it's a numeric field (salary), parse as float
+   * - Otherwise leave as string
+   */
+  _parseValue(field, value) {
+    const numericFields = ['minSalary', 'maxSalary'];
+    const booleanFields = ['isActive'];
+    const dateFields = ['createdAt'];
+
+    if (numericFields.includes(field)) return parseFloat(value);
+    if (booleanFields.includes(field)) return value === 'true';
+    if (dateFields.includes(field)) return new Date(value);
+
+    return value;
+  }
+
+  build() {
+    // If select is empty, Prisma will select all fields by default.
+    if (!this.hasSelect) {
+      delete this.options.select;
+    }
+    // If no orderBy specified, delete it so Prisma defaults to no specific ordering
+    if (this.options.orderBy.length === 0) {
+      delete this.options.orderBy;
+    }
+    return this.options;
+  }
 }
 
-exports.getJobById = async (jobId) => {
-  const isValidUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(str);
-
-  if (!isValidUUID(jobId)) {
-    throw new Error(`Invalid UUID: ${jobId}`);
-  }
-
-  try {
-    return await prisma.job.findUnique({ where: { id: jobId } });
-  } catch (err) {
-    console.error('Invalid UUID passed to findUnique:', jobId, err.message);
-    throw new Error('Invalid job ID');
-  }
-};
-
-
-exports.updateJobStatus = async (jobId, newStatus) => {
-  const updatedJob = await prisma.job.update({
-    where: { id: jobId },
-    data: { status: newStatus },
-  });
-
-  // Invalidate cache
-  invalidateJobsCache()
-
-  return updatedJob;
-};
-
-exports.updateJob = async (jobId, updateData) => {
-  const updatedJob = await prisma.job.update({
-    where: { id: jobId },
-    data: updateData,
-  });
-
-  // Invalidate cache
-  invalidateJobsCache()
-
-  return updatedJob;
-};
-
-exports.deleteJob = async (jobId) => {
-  const deletedJob = await prisma.job.delete({
-    where: { id: jobId },
-  });
-
-  // Invalidate cache
-  invalidateJobsCache()
-
-  return deletedJob;
-};
-
-exports.getRelatedJobs = async (jobId) => {
-  const cacheKey = `related-jobs:${jobId}`;
-
-  try {
-    const cached = await redisClient.get(cacheKey);
-    if (cached) {
-      logger.debug(`Redis cache hit: ${cacheKey}`);
-      return JSON.parse(cached);
-    }
-  } catch (err) {
-    logger.error(`Redis read error: ${err.message}`);
-  }
-
-  const currentJob = await prisma.job.findUnique({
-    where: { id: jobId }
-  });
-
-  if (!currentJob) {
-    throw new Error('Job not found');
-  }
-
-  const candidates = await prisma.job.findMany({
-    where: {
-      id: { not: jobId },
-      roleCategory: currentJob.roleCategory,
-      postedDate: { gte: thirtyDaysAgo }
-    }
-  });
-
-  const related = candidates
-    .map((job) => {
-      let score = 0;
-
-      score += 3;
-
-      if (job.experienceLevel === currentJob.experienceLevel) {
-        score += 1;
-      }
-
-      if (
-        typeof job.country === 'string' &&
-        typeof currentJob.country === 'string' &&
-        job.country.toLowerCase() === currentJob.country.toLowerCase()
-      ) {
-        score += 0.5;
-      }
-
-      const sharedSkills = Array.isArray(job.skills) && Array.isArray(currentJob.skills)
-      ? job.skills.filter((skill) =>
-          currentJob.skills.some(
-            (s) =>
-              typeof s === 'string' &&
-              typeof skill === 'string' &&
-              s.toLowerCase() === skill.toLowerCase()
-          )
-        )
-      : [];
-
-      if (sharedSkills.length > 0) score += 2;
-
-      return { ...job, score };
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3); 
-    
-  try {
-    await redisClient.set(cacheKey, JSON.stringify(related), 'EX', 300);
-    await redisClient.sadd('related-jobs:keys', cacheKey);
-  } catch (err) {
-    logger.error(`Redis write error: ${err.message}`);
-  }
-
-  return related;
-}
+module.exports = APIFeatures;
