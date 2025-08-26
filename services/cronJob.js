@@ -15,6 +15,33 @@ cron.schedule('0 * * * *', async () => {
     });
 
     logger.info(`Expired ${result.count} jobs older than 36 hours`);
+
+    // --- Deduplication ---
+    const jobs = await prisma.job.findMany({
+      orderBy: { updatedAt: 'desc' }, // newest first
+    });
+
+    const seen = new Set();
+    const duplicateIds = [];
+
+    for (const job of jobs) {
+      const key = `${job.title?.trim().toLowerCase()}-${job.description?.trim().toLowerCase()}-${job.companyName?.trim().toLowerCase()}-${job.city?.trim().toLowerCase()}-${job.state?.trim().toLowerCase()}-${job.salary?.trim().toLowerCase()}`;
+
+      if (seen.has(key)) {
+        duplicateIds.push(job.id);
+      } else {
+        seen.add(key);
+      }
+    }
+
+    if (duplicateIds.length > 0) {
+      await prisma.job.updateMany({
+        where: { id: { in: duplicateIds } },
+        data: { jobStatus: 'expired' }
+      });
+      logger.info(`Deleted ${duplicateIds.length} duplicate jobs`);
+    }
+
   } catch (err) {
     logger.error(`Error expiring jobs: ${err.message}`);
   }
