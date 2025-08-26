@@ -29,6 +29,25 @@ const invalidateJobsCache = async () => {
   }
 };
 
+const deduplicateJobs = (jobs) => {
+  const seen = new Set();
+  return jobs.filter((job) => {
+    const key = [
+      job.title?.trim().toLowerCase(),
+      job.description?.trim().toLowerCase(),
+      (job.skills || []).slice().sort().join('|'),
+      job.country?.trim().toLowerCase(),
+      job.state?.trim().toLowerCase(),
+      job.city?.trim().toLowerCase(),
+      job.minSalary,
+      job.maxSalary,
+    ].join('::');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 
 exports.getAllJobs = async (reqQuery = {}) => {
   const cacheKey = buildCacheKey('jobs', reqQuery);
@@ -95,7 +114,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
         take: options.take,
       });
 
-      totalJobs = await prisma.job.count({ where: options.where });
+      totalJobs = deduplicateJobs(jobs).length;
       await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
     } catch (err) {
       logger.error(`Prisma findMany/count error: ${err.message}`);
@@ -159,7 +178,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
         // Pagination (cast options._page/_limit to Number for safety)
         const page = Number(options._page) || 1;
         const limit = Number(options._limit) || 10;
-        totalJobs = scored.length;
+        totalJobs = deduplicateJobs(scored).length;
 
         const start = (page - 1) * limit;
         const end = start + limit;
