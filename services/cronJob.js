@@ -8,7 +8,7 @@ cron.schedule('0 * * * *', async () => {
 
     const result = await prisma.job.updateMany({
       where: {
-        updatedAt: { lt: cutoffTime },
+        updatedAt: { lt: cutoffTime.toISOString() },
         jobStatus: { not: 'expired' }
       },
       data: { jobStatus: 'expired' }
