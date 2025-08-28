@@ -2,13 +2,21 @@ const cron = require('node-cron');
 const prisma = require('../config/prisma'); 
 const logger = require('../config/logger');
 
-cron.schedule('0 * * * *', async () => {
+cron.schedule('0 2 * * *', async () => {
+  const formatForDatabase = (date) => {
+    return date.toISOString().slice(0, 23).replace('T', ' ').replace('Z', '');
+    // Converts "2025-08-27T12:00:00.059Z" to "2025-08-27 12:00:00.059"
+  };
+  
   try {
     const cutoffTime = new Date(Date.now() - 36 * 60 * 60 * 1000);
 
+    logger.info(`Current time: ${now.toISOString()}`);
+    logger.info(`Cutoff time: ${cutoffTime.toISOString()}`);
+
     const result = await prisma.job.updateMany({
       where: {
-        updatedAt: { lt: cutoffTime.toISOString() },
+        updatedAt: { lt: cutoffTime },
         jobStatus: { not: 'expired' }
       },
       data: { jobStatus: 'expired' }
@@ -37,7 +45,7 @@ cron.schedule('0 * * * *', async () => {
     if (duplicateIds.length > 0) {
       await prisma.job.updateMany({
         where: { id: { in: duplicateIds } },
-        data: { jobStatus: 'expired' }
+        data: { jobStatus: 'duplicates' }
       });
       logger.info(`Deleted ${duplicateIds.length} duplicate jobs`);
     }
