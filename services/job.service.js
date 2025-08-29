@@ -7,6 +7,9 @@ const Fuse = require ('fuse.js')
 const CANDIDATE_LIMIT = 2000; // max rows to fetch for fuzzy processing
 const CANDIDATE_MULTIPLIER = 10;
 
+const thirtyDaysAgo = new Date();
+thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
 /**
  * Build a deterministic Redis key from a base string and query object.
  * e.g. baseKey = 'jobs', queryObject = { page: '2', status: 'open' }
@@ -93,9 +96,6 @@ exports.getAllJobs = async (reqQuery = {}) => {
 
   let jobs = [];
   let totalJobs = 0;
-
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   if (!fuzzyEnabled) {
     // Non-fuzzy path: we can rely on Prisma options with skip & take (already in options)
