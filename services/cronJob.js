@@ -3,10 +3,6 @@ const prisma = require('../config/prisma');
 const logger = require('../config/logger');
 
 cron.schedule('0 2 * * *', async () => {
-  const formatForDatabase = (date) => {
-    return date.toISOString().slice(0, 23).replace('T', ' ').replace('Z', '');
-    // Converts "2025-08-27T12:00:00.059Z" to "2025-08-27 12:00:00.059"
-  };
   
   try {
     const cutoffTime = new Date(Date.now() - 36 * 60 * 60 * 1000);
@@ -16,7 +12,7 @@ cron.schedule('0 2 * * *', async () => {
 
     const result = await prisma.job.updateMany({
       where: {
-        updatedAt: { lt: formatForDatabase(cutoffTime) },
+        updatedAt: { lt: cutoffTime },
         jobStatus: { not: 'expired' }
       },
       data: { jobStatus: 'expired' }
