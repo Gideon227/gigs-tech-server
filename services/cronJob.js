@@ -2,7 +2,7 @@ const cron = require('node-cron');
 const prisma = require('../config/prisma'); 
 const logger = require('../config/logger');
 
-cron.schedule('*/5 * * * *', async () => {
+cron.schedule('0 * * * *', async () => {
   
   try {
     const cutoffTime = new Date(Date.now() - 36 * 60 * 60 * 1000);
