@@ -9,7 +9,7 @@ cron.schedule('0 * * * *', async () => {
     const cutoffTime = new Date(Date.now() - 36 * 60 * 60 * 1000);
 
     logger.info(`Current time: ${now.toISOString()}`);
-    logger.info(`Cutoff time: ${cutoffTime()}`);
+    logger.info(`Cutoff time: ${cutoffTime}`);
 
     const result = await prisma.job.updateMany({
       where: {
