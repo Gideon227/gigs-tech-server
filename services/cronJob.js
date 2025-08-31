@@ -2,18 +2,22 @@ const cron = require('node-cron');
 const prisma = require('../config/prisma'); 
 const logger = require('../config/logger');
 
-cron.schedule('0 * * * *', async () => {
+cron.schedule('*/5 * * * *', async () => {
   
   try {
-    const now = new Date();
     const cutoffTime = new Date(Date.now() - 36 * 60 * 60 * 1000);
+
+    const formatForDatabase = (date) => {
+      return date.toISOString().slice(0, 23).replace('T', ' ');
+    };
 
     logger.info(`Current time: ${now.toISOString()}`);
     logger.info(`Cutoff time: ${cutoffTime}`);
+    logger.info(`Cutoff time: ${cutoffTime.toISOString()}`);
 
     const result = await prisma.job.updateMany({
       where: {
-        updatedAt: { lt: cutoffTime },
+        updatedAt: { lt: formatForDatabase(cutoffTime) },
         jobStatus: { not: 'expired' }
       },
       data: { jobStatus: 'expired' }
@@ -46,21 +50,6 @@ cron.schedule('0 * * * *', async () => {
       });
       logger.info(`Deleted ${duplicateIds.length} duplicate jobs`);
     }
-
-    //----- 30 Days jobs -----//
-    const cutoff30days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    logger.info(`30-day cutoff UTC: ${cutoff30days.toISOString()}`);
-
-    const result30days = await prisma.job.updateMany({
-      where: {
-        postedDate: { lt: cutoff30days },
-        jobStatus: { not: 'expired' }
-      },
-      data: { jobStatus: 'expired' }
-    });
-
-    logger.info(`Expired ${result30days.count} jobs older than 30 days`);
 
   } catch (err) {
     logger.error(`Error expiring jobs: ${err.message}`);

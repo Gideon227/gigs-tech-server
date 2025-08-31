@@ -5,10 +5,13 @@ require('dotenv').config();
   try {
     const now = new Date();
     const cutoffTime = new Date(Date.now() - 36 * 60 * 60 * 1000);
+    const formatForDatabase = (date) => {
+      return date.toISOString().slice(0, 23).replace('T', ' ');
+    };
 
     console.log("Now UTC:      ", now.toISOString());
-    console.log("Now UTC:      ", now);
-    console.log("Cutoff UTC:   ", cutoffTime.toISOString());
+    console.log("Now UTC:      ", formatForDatabase(cutoffTime));
+    console.log("Cutoff UTC:   ", cutoffTime);
 
     // Grab a recent job
     // const job = await prisma.job.findFirst({
