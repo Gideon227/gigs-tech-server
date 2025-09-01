@@ -2,55 +2,77 @@ const cron = require('node-cron');
 const prisma = require('../config/prisma'); 
 const logger = require('../config/logger');
 
-cron.schedule('0 * * * *', async () => {
+const safeStr = (v) => (v ?? '').toString().trim().toLowerCase(); 
+
+cron.schedule('*/5 * * * *', async () => {
+  const now = new Date();
   
   try {
-    const cutoffTime = new Date(Date.now() - 36 * 60 * 60 * 1000);
+    logger.info(`[CRON] start: ${now.toISOString()}`);
+    
+    const expire36h = await prisma.$executeRaw`
+      UPDATE "job"
+      SET "jobStatus" = 'inactive'
+      WHERE "jobStatus" <> 'inactive'
+        AND "updatedAt" < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '24 hours'
+    `;
 
-    const formatForDatabase = (date) => {
-      return date.toISOString().slice(0, 23).replace('T', ' ');
-    };
+    logger.info(`[CRON] expired (>36h updatedAt): ${expire36h ?? 'OK'}`);
 
-    logger.info(`Current time: ${now.toISOString()}`);
-    logger.info(`Cutoff time: ${cutoffTime}`);
-    logger.info(`Cutoff time: ${cutoffTime.toISOString()}`);
-
-    const result = await prisma.job.updateMany({
-      where: {
-        updatedAt: { lt: formatForDatabase(cutoffTime) },
-        jobStatus: { not: 'expired' }
-      },
-      data: { jobStatus: 'expired' }
-    });
-
-    logger.info(`Expired ${result.count} jobs older than 36 hours`);
+    // --- Expire > 30d by postedDate (DB computes cutoff in UTC) ---
+    const expire30d = await prisma.$executeRaw`
+      UPDATE "job"
+      SET "jobStatus" = 'expired'
+      WHERE "jobStatus" <> 'expired'
+        AND "postedDate" < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '30 days'
+    `;
+    logger.info(`[CRON] expired (>30d postedDate): ${expire30d ?? 'OK'}`);
 
     // --- Deduplication ---
     const jobs = await prisma.job.findMany({
-      orderBy: { updatedAt: 'desc' }, // newest first
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        companyName: true,
+        city: true,
+        state: true,
+        salary: true,
+      },
     });
 
     const seen = new Set();
-    const duplicateIds = [];
+    const dupIds = [];
+    for (const j of jobs) {
+      const key = [
+        safeStr(j.title),
+        safeStr(j.description),
+        safeStr(j.companyName),
+        safeStr(j.city),
+        safeStr(j.state),
+        safeStr(j.salary),
+      ].join('|');
 
-    for (const job of jobs) {
-      const key = `${job.title?.trim().toLowerCase()}-${job.description?.trim().toLowerCase()}-${job.companyName?.trim().toLowerCase()}-${job.city?.trim().toLowerCase()}-${job.state?.trim().toLowerCase()}-${job.salary?.trim().toLowerCase()}`;
+      if (seen.has(key)) dupIds.push(j.id);
+      else seen.add(key);
+    }
 
-      if (seen.has(key)) {
-        duplicateIds.push(job.id);
-      } else {
-        seen.add(key);
+    if (dupIds.length) {
+      // chunk to avoid huge IN() lists
+      const CHUNK = 1000;
+      for (let i = 0; i < dupIds.length; i += CHUNK) {
+        await prisma.job.updateMany({
+          where: { id: { in: dupIds.slice(i, i + CHUNK) } },
+          data: { jobStatus: 'duplicates' },
+        });
       }
     }
+    logger.info(`[CRON] marked duplicates: ${dupIds.length}`);
 
-    if (duplicateIds.length > 0) {
-      await prisma.job.updateMany({
-        where: { id: { in: duplicateIds } },
-        data: { jobStatus: 'duplicates' }
-      });
-      logger.info(`Deleted ${duplicateIds.length} duplicate jobs`);
-    }
-
+    const finished = new Date();
+    logger.info(`[CRON] done: ${finished.toISOString()} (took ${finished - started}ms)`);
+    
   } catch (err) {
     logger.error(`Error expiring jobs: ${err.message}`);
   }
