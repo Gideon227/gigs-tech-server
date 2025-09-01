@@ -4,7 +4,7 @@ const logger = require('../config/logger');
 
 const safeStr = (v) => (v ?? '').toString().trim().toLowerCase(); 
 
-cron.schedule('*/5 * * * *', async () => {
+cron.schedule('0 * * * *', async () => {
   const now = new Date();
   
   try {
@@ -72,7 +72,7 @@ cron.schedule('*/5 * * * *', async () => {
 
     const finished = new Date();
     logger.info(`[CRON] done: ${finished.toISOString()} (took ${finished - started}ms)`);
-    
+
   } catch (err) {
     logger.error(`Error expiring jobs: ${err.message}`);
   }
