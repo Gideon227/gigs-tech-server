@@ -220,7 +220,7 @@ class APIFeatures {
           field = field.slice(1); // remove '-'
         }
 
-        if (field === 'datePosted') field = 'postedDate';
+        // if (field === 'datePosted') field = 'postedDate';
         return { [field]: direction };
       });
     } else {
@@ -228,7 +228,6 @@ class APIFeatures {
     }
     return this;
   }
-
 
   limitFields() {
     if (this.queryParams.fields) {

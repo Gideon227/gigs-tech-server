@@ -106,9 +106,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
           postedDate: { gte: thirtyDaysAgo },
           jobStatus: { equals: "active" },
         },
-        orderBy: [
-          { postedDate: "desc" } 
-        ],
+        orderBy: options.orderBy || [{ postedDate: "desc" }],
         select: options.select,
         skip: options.skip,
         take: options.take,
