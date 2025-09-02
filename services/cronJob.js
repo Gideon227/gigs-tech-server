@@ -10,23 +10,23 @@ cron.schedule('0 * * * *', async () => {
   try {
     logger.info(`[CRON] start: ${now.toISOString()}`);
     
-    const expire36h = await prisma.$executeRaw`
+    const expire24h = await prisma.$executeRaw`
       UPDATE "job"
       SET "jobStatus" = 'inactive'
       WHERE "jobStatus" <> 'inactive'
         AND "updatedAt" < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '24 hours'
     `;
 
-    logger.info(`[CRON] expired (>36h updatedAt): ${expire36h ?? 'OK'}`);
+    logger.info(`[CRON] expired (>36h updatedAt): ${expire24h ?? 'OK'}`);
 
     // --- Expire > 30d by postedDate (DB computes cutoff in UTC) ---
-    const expire30d = await prisma.$executeRaw`
-      UPDATE "job"
-      SET "jobStatus" = 'expired'
-      WHERE "jobStatus" <> 'expired'
-        AND "postedDate" < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '30 days'
-    `;
-    logger.info(`[CRON] expired (>30d postedDate): ${expire30d ?? 'OK'}`);
+    // const expire30d = await prisma.$executeRaw`
+    //   UPDATE "job"
+    //   SET "jobStatus" = 'expired'
+    //   WHERE "jobStatus" <> 'expired'
+    //     AND "postedDate" < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '30 days'
+    // `;
+    // logger.info(`[CRON] expired (>30d postedDate): ${expire30d ?? 'OK'}`);
 
     // --- Deduplication ---
     const jobs = await prisma.job.findMany({
