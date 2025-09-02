@@ -171,13 +171,59 @@ exports.getAllJobs = async (reqQuery = {}) => {
         // Map to items with numeric score (fuse score can be undefined in some cases)
         const scored = fuseResults.map(r => ({ item: r.item, score: typeof r.score === 'number' ? r.score : 0 }));
 
-        // Sort ascending by score, then fallback to createdAt desc
         scored.sort((a, b) => {
-          if (a.score !== b.score) return a.score - b.score; // ascending: best (smallest) first
-          const ta = new Date(a.item.createdAt || 0).getTime();
-          const tb = new Date(b.item.createdAt || 0).getTime();
-          return tb - ta; // newer first
+          // Primary: Sort by relevance score (ascending: best/smallest score first)
+          if (a.score !== b.score) return a.score - b.score;
+          
+          // Secondary: Apply user-specified sort as fallback
+          if (options.orderBy && options.orderBy.length > 0) {
+            for (const sortRule of options.orderBy) {
+              const field = Object.keys(sortRule)[0];
+              const direction = sortRule[field];
+              
+              let aVal = a.item[field];
+              let bVal = b.item[field];
+              
+              // Handle date fields
+              if (field === 'postedDate' || field === 'createdAt') {
+                aVal = new Date(aVal || 0).getTime();
+                bVal = new Date(bVal || 0).getTime();
+              }
+              
+              // Handle numeric fields
+              if (field.includes('Salary') || field === 'score') {
+                aVal = Number(aVal) || 0;
+                bVal = Number(bVal) || 0;
+              }
+              
+              // Handle string fields
+              if (typeof aVal === 'string' && typeof bVal === 'string') {
+                aVal = aVal.toLowerCase();
+                bVal = bVal.toLowerCase();
+              }
+              
+              if (aVal !== bVal) {
+                if (direction === 'desc') {
+                  return bVal > aVal ? 1 : -1;
+                } else {
+                  return aVal > bVal ? 1 : -1;
+                }
+              }
+            }
+          }
+          
+          const ta = new Date(a.item.postedDate || 0).getTime();
+          const tb = new Date(b.item.postedDate || 0).getTime();
+          return tb - ta;
         });
+
+        // // Sort ascending by score, then fallback to createdAt desc
+        // scored.sort((a, b) => {
+        //   if (a.score !== b.score) return a.score - b.score; // ascending: best (smallest) first
+        //   const ta = new Date(a.item.createdAt || 0).getTime();
+        //   const tb = new Date(b.item.createdAt || 0).getTime();
+        //   return tb - ta; // newer first
+        // });
 
         // Pagination (cast options._page/_limit to Number for safety)
         const page = Number(options._page) || 1;
