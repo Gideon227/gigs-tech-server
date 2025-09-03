@@ -172,14 +172,23 @@ exports.getAllJobs = async (reqQuery = {}) => {
         const scored = fuseResults.map(r => ({ item: r.item, score: typeof r.score === 'number' ? r.score : 0 }));
 
         scored.sort((a, b) => {
-          // Primary: Sort by relevance
-          if (a.score !== b.score) return a.score - b.score;
-
-          // Secondary: User-specified sort
+          // Check if user wants relevancy sorting
+          const wantsRelevancySort = options.orderBy && 
+            options.orderBy.some(order => Object.keys(order).includes('id'));
+          
+          if (wantsRelevancySort) {
+            // User wants relevancy - sort by fuzzy score first
+            if (a.score !== b.score) return a.score - b.score;
+          }
+          
+          // For date sorting or when scores are equal, use user-specified sort
           if (options.orderBy && options.orderBy.length > 0) {
             for (const sortRule of options.orderBy) {
               const field = Object.keys(sortRule)[0];
               const direction = sortRule[field];
+
+              // Skip the 'id' field used for relevancy indicator
+              if (field === 'id') continue;
 
               let aVal = a.item[field];
               let bVal = b.item[field];
@@ -202,7 +211,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
             }
           }
 
-          // Fallback: postedDate descending
+          // Final fallback: postedDate descending
           return new Date(b.item.postedDate).getTime() - new Date(a.item.postedDate).getTime();
         });
 
@@ -216,8 +225,8 @@ exports.getAllJobs = async (reqQuery = {}) => {
         // });
 
         // Pagination (cast options._page/_limit to Number for safety)
-        const page = Number(options._page) || 1;
-        const limit = Number(options._limit) || 10;
+        const page = Math.floor((options.skip || 0) / (options.take || 10)) + 1;
+        const limit = options.take || 10;
         totalJobs = scored.length;
 
         const start = (page - 1) * limit;
