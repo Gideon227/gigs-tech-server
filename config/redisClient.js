@@ -6,8 +6,7 @@ const { redis, env } = require('./config');
 const redisClient = new Redis({
   host: redis.host,
   port: redis.port,
-  password: redis.password, 
-  tls: {}
+  // password: redis.password, 
 });
 
 redisClient.on('connect', () => {
