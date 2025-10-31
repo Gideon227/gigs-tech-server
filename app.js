@@ -17,10 +17,18 @@ const app = express();
 // GLOBAL MIDDLEWARE
 app.use(helmet());                         // Security headers
 
+const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(o => o.trim());
+
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || '*',
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    }
+  },
   credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
 app.use(cors(corsOptions));
