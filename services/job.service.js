@@ -119,6 +119,15 @@ const REQUIRED_KEYWORDS = [
   'powerbi',
   'powerapps',
   'powerautomate',
+  'low code', 
+  'no code', 
+  'automation', 
+  'microsoft apps',
+  'dataverse', 
+  'canvas app', 
+  'model driven app',
+  'microsoft business applications', 
+  'crm developer'
 ];
 
 // Compile regex patterns once for performance
@@ -186,10 +195,25 @@ function containsRequiredKeywords(job) {
     if (combinedText.trim().length === 0) return false;
     
     // Check if ANY pattern matches (at least one keyword must be present)
-    for (const pattern of REQUIRED_PATTERNS) {
-      if (pattern.test(combinedText)) {
-        return true; // Found at least one required keyword
+    // for (const pattern of REQUIRED_PATTERNS) {
+    //   if (pattern.test(combinedText)) {
+    //     return true; // Found at least one required keyword
+    //   }
+    // }
+
+    for (const keyword of REQUIRED_KEYWORDS) {
+      const simpleKeyword = keyword.toLowerCase().replace(/\s+/g, " ").trim();
+      if (
+        combinedText.includes(simpleKeyword) || 
+        title.includes(simpleKeyword) // strong bias to title
+      ) {
+        return true;
       }
+    }
+
+    // Title-only fallback if description is missing
+    if (!skills && REQUIRED_KEYWORDS.some(k => title.includes(k.toLowerCase()))) {
+      return true;
     }
     
     return false; // No required keywords found
