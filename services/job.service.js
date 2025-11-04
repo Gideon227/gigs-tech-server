@@ -77,6 +77,8 @@ const REQUIRED_KEYWORDS = [
   'power platform support',
   'power platform specialist',
   'power platform solution',
+  'bi',
+  '365',
   
   // Dynamics variants
   'dynamics crm',
@@ -127,7 +129,12 @@ const REQUIRED_KEYWORDS = [
   'canvas app', 
   'model driven app',
   'microsoft business applications', 
-  'crm developer'
+  'crm developer',
+  'microsoft',
+  'fullstack developer',
+  'engineer',
+  'AI',
+  'developer'
 ];
 
 // Compile regex patterns once for performance
