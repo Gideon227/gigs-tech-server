@@ -1,42 +1,30 @@
-name: Deploy Backend to EC2 - Production
-
+name: Deploy Backend to DigitalOcean
 on:
   push:
-    branches: [ prod ]
+    branches:
+      - prod
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.6.0
-        with:
-          ssh-private-key: ${{ secrets.PRODUCTION_SSH_KEY }}
-
-      - name: Test SSH Connection
         run: |
-          echo "Testing SSH connection..."
-          ssh -v -o StrictHostKeyChecking=no ec2-user@3.132.58.64 "echo 'SSH connected'"
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DO_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy
+      - name: Deploy Backend
         run: |
-          ssh -o StrictHostKeyChecking=no ec2-user@3.132.58.64 << 'EOF'
-            cd /var/www/backend
-
-            echo "Pulling latest code..."
-            git pull origin prod
-
-            echo "Installing dependencies..."
-            npm install
-
-            echo "Running Prisma deploy..."
-            dotenv -e .env.production -- npx prisma migrate deploy
-
-            echo "Restarting app with PM2..."
-            pm2 restart backend || pm2 start npm --name "backend" -- run start
-
-            echo "Deployment complete"
-          EOF
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} "
+            cd /var/www/gigs-tech/backend &&
+            git pull origin main &&
+            npm install --production &&
+            npm run build &&
+            pm2 restart all || pm2 start dist/main.js --name gigs-backend
+          "
