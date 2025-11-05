@@ -147,7 +147,6 @@ const REQUIRED_KEYWORDS = [
   'power platform support',
   'power platform specialist',
   'power platform solution',
-  'bi',
   '365',
   
   // Dynamics variants
@@ -191,7 +190,7 @@ const REQUIRED_KEYWORDS = [
   'powerbi',
   'powerapps',
   'powerautomate',
-  'low code', 
+  'low-code platform', 
   'no code', 
   'automation', 
   'microsoft apps',
@@ -200,7 +199,6 @@ const REQUIRED_KEYWORDS = [
   'model driven app',
   'microsoft business applications', 
   'crm developer',
-  'microsoft',
 ];
 
 // Compile regex patterns once for performance
