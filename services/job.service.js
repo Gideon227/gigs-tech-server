@@ -138,7 +138,7 @@ const REQUIRED_KEYWORDS = [
   'crm developer',
   'microsoft',
   'fullstack developer',
-  'engineer',
+  // 'engineer',
   'AI',
   'developer'
 ];
