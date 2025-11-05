@@ -38,24 +38,254 @@ const invalidateJobsCache = async () => {
   }
 };
 
-const deduplicateJobs = (jobs) => {
-  const seen = new Set();
-  return jobs.filter((job) => {
-    const key = [
-      job.title?.trim().toLowerCase(),
-      job.description?.trim().toLowerCase(),
-      (job.skills || []).slice().sort().join('|'),
-      job.country?.trim().toLowerCase(),
-      job.state?.trim().toLowerCase(),
-      job.city?.trim().toLowerCase(),
-      job.minSalary,
-      job.maxSalary,
-    ].join('::');
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+// const deduplicateJobs = (jobs) => {
+//   const seen = new Set();
+//   return jobs.filter((job) => {
+//     const key = [
+//       job.title?.trim().toLowerCase(),
+//       job.description?.trim().toLowerCase(),
+//       (job.skills || []).slice().sort().join('|'),
+//       job.country?.trim().toLowerCase(),
+//       job.state?.trim().toLowerCase(),
+//       job.city?.trim().toLowerCase(),
+//       job.minSalary,
+//       job.maxSalary,
+//     ].join('::');
+//     if (seen.has(key)) return false;
+//     seen.add(key);
+//     return true;
+//   });
+// };
+
+/**
+ * Excluded keywords for Microsoft Dynamics/Power Platform related jobs
+ * These keywords will be matched case-insensitively against title, description, and skills
+ */
+const REQUIRED_KEYWORDS = [
+  // Power Platform
+  'dynamics 365',
+  'power platform',
+  'copilot ai',
+  'power apps',
+  'power automate',
+  'power bi',
+  'power virtual agents',
+  'power fx',
+  'power pages',
+  'dataverse',
+  'canvas app',
+  'model-driven app',
+  'power platform developer',
+  'power platform consultant',
+  'power platform architect',
+  'power platform engineer',
+  'power platform administrator',
+  'power platform support',
+  'power platform specialist',
+  'power platform solution',
+  'bi',
+  '365',
+  
+  // Dynamics variants
+  'dynamics crm',
+  'dynamics ax',
+  'dynamics nav',
+  'dynamics gp',
+  'business central',
+  'd365 f&o',
+  'd365fo',
+  'd365 finance',
+  'd365 sales',
+  'd365 customer service',
+  'd365 field service',
+  'd365 marketing',
+  'd365 project operations',
+  'd365 hr',
+  'd365 talent',
+  'dynamics developer',
+  'dynamics consultant',
+  'dynamics architect',
+  'dynamics administrator',
+  'dynamics functional consultant',
+  'dynamics technical consultant',
+  'dynamics support',
+  'dynamics solution architect',
+  
+  // Copilot variants
+  'microsoft copilot',
+  'copilot for power platform',
+  'copilot studio',
+  'copilot',
+  'ai builder',
+  'low-code ai',
+  'generative ai power platform',
+  'copilot developer',
+  'copilot for dynamics 365',
+  
+  // Common abbreviations and variations
+  'd365',
+  'powerbi',
+  'powerapps',
+  'powerautomate',
+  'low code', 
+  'no code', 
+  'automation', 
+  'microsoft apps',
+  'dataverse', 
+  'canvas app', 
+  'model driven app',
+  'microsoft business applications', 
+  'crm developer',
+  'microsoft',
+  'fullstack developer',
+  'engineer',
+  'AI',
+  'developer'
+];
+
+// Compile regex patterns once for performance
+const REQUIRED_PATTERNS = REQUIRED_KEYWORDS.map(keyword => 
+  new RegExp(keyword.replace(/\s+/g, '\\s*'), 'i')
+);
+
+// UTILITY FUNCTIONS
+
+/**
+ * Checks if a string is empty or contains only whitespace
+ */
+function isEmptyOrWhitespace(value) {
+  if (value === null || value === undefined) return true;
+  if (typeof value !== 'string') return true;
+  return value.trim().length === 0;
+}
+
+/**
+ * Safely extracts text content from a value that might be null, undefined, or non-string
+ */
+function extractText(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'object' && value.toString) return value.toString().trim();
+  return String(value).trim();
+}
+
+/**
+ * Extracts skills array and normalizes it to a searchable string
+ */
+function extractSkills(skills) {
+  if (!skills) return '';
+  
+  // Handle array
+  if (Array.isArray(skills)) {
+    return skills
+      .filter(skill => skill && typeof skill === 'string' && skill.trim().length > 0)
+      .map(skill => skill.trim())
+      .join(' ');
+  }
+  
+  // Handle string
+  if (typeof skills === 'string') {
+    return skills.trim();
+  }
+  
+  return '';
+}
+
+/**
+ * Checks if job contains at least one required keyword
+ */
+function containsRequiredKeywords(job) {
+  try {
+    // Extract and prepare text fields
+    const title = extractText(job.title).toLowerCase();
+    const description = extractText(job.description).toLowerCase();
+    const skills = extractSkills(job.skills).toLowerCase();
+    
+    // Combine all searchable text
+    const combinedText = `${title} ${description} ${skills}`;
+    
+    // If combined text is empty, we can't determine - exclude
+    if (combinedText.trim().length === 0) return false;
+    
+    // Check if ANY pattern matches (at least one keyword must be present)
+    // for (const pattern of REQUIRED_PATTERNS) {
+    //   if (pattern.test(combinedText)) {
+    //     return true; // Found at least one required keyword
+    //   }
+    // }
+
+    for (const keyword of REQUIRED_KEYWORDS) {
+      const simpleKeyword = keyword.toLowerCase().replace(/\s+/g, " ").trim();
+      if (
+        combinedText.includes(simpleKeyword) || 
+        title.includes(simpleKeyword) // strong bias to title
+      ) {
+        return true;
+      }
+    }
+
+    // Title-only fallback if description is missing
+    if (!skills && REQUIRED_KEYWORDS.some(k => title.includes(k.toLowerCase()))) {
+      return true;
+    }
+    
+    return false; // No required keywords found
+  } catch (error) {
+    logger.error(`Error checking required keywords for job ${job.id}: ${error.message}`);
+    // If we can't determine, exclude for safety
+    return false;
+  }
+}
+
+//Validates that job has required fields with actual content
+function hasValidFields(job) {
+  if (!job) return false;
+
+  if (isEmptyOrWhitespace(job.title)) return false;
+  if (isEmptyOrWhitespace(job.description)) return false;
+  
+  return true;
+}
+
+/**
+ * Comprehensive job validation and filtering
+ */
+function isValidJob(job) {
+  if (!job) return false;
+  if (!hasValidFields(job)) return false;
+  if (!containsRequiredKeywords(job)) return false;
+  
+  return true;
+}
+
+/**
+ * Filters an array of jobs based on validation rules
+ */
+function filterValidJobs(jobs) {
+  if (!Array.isArray(jobs)) return [];
+  
+  return jobs.filter(job => {
+    try {
+      return isValidJob(job);
+    } catch (error) {
+      logger.error(`Error validating job ${job?.id}: ${error.message}`);
+      return false;
+    }
   });
-};
+}
+
+function filterValidJobs(jobs) {
+  if (!Array.isArray(jobs)) return [];
+  
+  return jobs.filter(job => {
+    try {
+      return isValidJob(job);
+    } catch (error) {
+      logger.error(`Error validating job ${job?.id}: ${error.message}`);
+      return false; // Exclude on error
+    }
+  });
+}
 
 exports.getAllJobs = async (reqQuery = {}) => {
   const cacheKey = buildCacheKey('jobs', reqQuery);
@@ -105,27 +335,38 @@ exports.getAllJobs = async (reqQuery = {}) => {
   // 🧠 NON-FUZZY SEARCH
   if (!fuzzyEnabled) {
     try {
-      const baseWhere = {
-        ...options.where,
-        postedDate: { gte: thirtyDaysAgo },
-        jobStatus: { equals: "active" },
-        AND: [
-          {
-            title: { notIn: [null, ""] },
-            description: { notIn: [null, ""] },
-          },
-        ],
-      };
-
-      jobs = await prisma.job.findMany({
-        where: baseWhere,
+      let rawJobs = await prisma.job.findMany({
+        where: {
+          ...options.where,
+          postedDate: { gte: thirtyDaysAgo },
+          jobStatus: { equals: "active" },
+        },
         orderBy: options.orderBy || [{ postedDate: "desc" }],
         select: options.select,
         skip: options.skip,
-        take: options.take,
+        take: options.take * 3,
       });
 
-      totalJobs = await prisma.job.count({ where: baseWhere });
+      const validJobs = filterValidJobs(rawJobs);
+      
+      jobs = validJobs.slice(0, options.take || 10);
+
+      const allJobsForCount = await prisma.job.findMany({
+        where: {
+          ...options.where,
+          postedDate: { gte: thirtyDaysAgo },
+          jobStatus: { equals: "active" },
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true
+        },
+      });
+
+      totalJobs = filterValidJobs(allJobsForCount).length;
+
+      await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
     } catch (err) {
       logger.error(`Prisma findMany/count error: ${err.message}`);
       throw err;
@@ -146,16 +387,22 @@ exports.getAllJobs = async (reqQuery = {}) => {
         fuseKeys.push({ name: 'country', weight: 0.2 });
       }
 
-      candidates = candidates.filter(job =>
-        new Date(job.postedDate) >= thirtyDaysAgo &&
-        job.jobStatus === 'active' &&
-        job.title &&
-        job.description &&
-        job.title.trim() !== '' &&
-        job.description.trim() !== ''
-      );
+      candidates = candidates.filter(job =>{
+        try {
+          return (
+            new Date(job.postedDate) >= thirtyDaysAgo &&
+            job.jobStatus === 'active'
+          );
+        } catch (error) {
+          logger.error(`Error filtering candidate job ${job?.id}: ${error.message}`);
+          return false;
+        }
+      });
 
-      if (!candidates.length) {
+      candidates = filterValidJobs(candidates);
+      
+      // If no candidates returned, short-circuit
+      if (!candidates || candidates.length === 0) {
         jobs = [];
         totalJobs = 0;
       } else {
@@ -171,8 +418,9 @@ exports.getAllJobs = async (reqQuery = {}) => {
         if (features.fuzzy.location) searchTerms.push(features.fuzzy.location);
         const compositeSearch = searchTerms.join(' ').trim();
 
-        const fuseResults = compositeSearch
-          ? fuse.search(compositeSearch)
+        // Run search (if compositeSearch empty, treat all candidates as matched with score 0)
+        const fuseResults = compositeSearch 
+          ? fuse.search(compositeSearch) 
           : candidates.map(c => ({ item: c, score: 0 }));
 
         const scored = fuseResults.map(r => ({
@@ -197,6 +445,11 @@ exports.getAllJobs = async (reqQuery = {}) => {
               let aVal = a.item[field];
               let bVal = b.item[field];
 
+              if (aVal == null && bVal == null) continue;
+              if (aVal == null) return 1;
+              if (bVal == null) return -1;
+
+              // Convert dates to timestamps
               if (field === 'postedDate' || field === 'createdAt') {
                 aVal = new Date(aVal || 0).getTime();
                 bVal = new Date(bVal || 0).getTime();
@@ -222,6 +475,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
         const start = (page - 1) * limit;
         const end = start + limit;
 
+        // Slice and extract items
         jobs = scored.slice(start, end).map(x => x.item);
       }
     } catch (err) {
