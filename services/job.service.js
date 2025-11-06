@@ -262,15 +262,18 @@ function containsRequiredKeywords(job) {
     // If combined text is empty, we can't determine - exclude
     if (combinedText.trim().length === 0 || !combinedText.trim()) return false;
 
-    for (const pattern of REQUIRED_PATTERNS) {
-      if (pattern.test(combinedText)) return true;
+    for (const keyword of REQUIRED_KEYWORDS) {
+      if (typeof keyword !== 'string') continue;
+      const simpleKeyword = keyword.toLowerCase().replace(/\s+/g, " ").trim();
+      if (combinedText.includes(simpleKeyword) || title.includes(simpleKeyword)) {
+        return true;
+      }
     }
 
-    // Title-only fallback if skills is missing
-    if (!skills && REQUIRED_PATTERNS.some(k => title.includes(k.toLowerCase()))) {
+    if (!skills && REQUIRED_KEYWORDS.some(k => typeof k === 'string' && title.includes(k.toLowerCase()))) {
       return true;
     }
-    
+
     return false; 
   } catch (error) {
     logger.error(`Error checking required keywords for job ${job.id}: ${error.message}`);
@@ -376,7 +379,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
 
     const passing = rawJobs.filter(j => containsRequiredKeywords(j));
     console.log("Passing jobs:", passing.length);
-    
+
   } catch (err) {
     logger.error(`Prisma fetch all job, error: ${err.message}`);
     throw err;
