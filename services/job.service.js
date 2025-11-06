@@ -321,77 +321,75 @@ exports.getAllJobs = async (reqQuery = {}) => {
       orderBy: options.orderBy || [{ postedDate: "desc" }]
     });
 
-    const passing = rawJobs.filter(j => containsRequiredKeywords(j));
-    console.log("Passing jobs:", passing.length);
-
   } catch (err) {
     logger.error(`Prisma fetch all job, error: ${err.message}`);
     throw err;
   }
 
+  const validJobs = filterValidJobs(rawJobs);
+  totalJobs = validJobs.length;
+  const paginatedJobs = validJobs.slice(skip, skip + limit);
+  jobs = paginatedJobs;
+
   // NON-FUZZY SEARCH
-  if (!fuzzyEnabled) {
-    const validJobs = filterValidJobs(rawJobs);
-    totalJobs = validJobs.length;
-    const paginatedJobs = validJobs.slice(skip, skip + limit);
-    jobs = paginatedJobs;
-  } 
-  // FUZZY SEARCH
-  else {
-    try {
-      const fuseKeys = [];
-      if (features.fuzzy.keyword) {
-        fuseKeys.push({ name: 'title', weight: 0.6 });
-        fuseKeys.push({ name: 'description', weight: 0.3 });
-        fuseKeys.push({ name: 'companyName', weight: 0.1 });
-      }
-      if (features.fuzzy.location) {
-        fuseKeys.push({ name: 'city', weight: 0.35 });
-        fuseKeys.push({ name: 'state', weight: 0.25 });
-        fuseKeys.push({ name: 'country', weight: 0.2 });
-      }
+  // if (!fuzzyEnabled) {
+  // } 
+  // // FUZZY SEARCH
+  // else {
+  //   try {
+  //     const fuseKeys = [];
+  //     if (features.fuzzy.keyword) {
+  //       fuseKeys.push({ name: 'title', weight: 0.6 });
+  //       fuseKeys.push({ name: 'description', weight: 0.3 });
+  //       fuseKeys.push({ name: 'companyName', weight: 0.1 });
+  //     }
+  //     if (features.fuzzy.location) {
+  //       fuseKeys.push({ name: 'city', weight: 0.35 });
+  //       fuseKeys.push({ name: 'state', weight: 0.25 });
+  //       fuseKeys.push({ name: 'country', weight: 0.2 });
+  //     }
 
-      if (!rawJobs || rawJobs.length === 0) {
-        jobs = [];
-        totalJobs = 0;
-      } else {
-        const fuse = new Fuse(rawJobs, {
-          keys: fuseKeys,
-          threshold: 0.45,
-          ignoreLocation: true,
-          includeScore: true,
-        });
+  //     if (!rawJobs || rawJobs.length === 0) {
+  //       jobs = [];
+  //       totalJobs = 0;
+  //     } else {
+  //       const fuse = new Fuse(rawJobs, {
+  //         keys: fuseKeys,
+  //         threshold: 0.45,
+  //         ignoreLocation: true,
+  //         includeScore: true,
+  //       });
 
-        const searchTerms = [];
-        if (features.fuzzy.keyword) searchTerms.push(features.fuzzy.keyword);
-        if (features.fuzzy.location) searchTerms.push(features.fuzzy.location);
-        const compositeSearch = searchTerms.join(' ').trim();
+  //       const searchTerms = [];
+  //       if (features.fuzzy.keyword) searchTerms.push(features.fuzzy.keyword);
+  //       if (features.fuzzy.location) searchTerms.push(features.fuzzy.location);
+  //       const compositeSearch = searchTerms.join(' ').trim();
 
-        // Run search (if compositeSearch empty, treat all rawJobs as matched with score 0)
-        const fuseResults = compositeSearch 
-          ? fuse.search(compositeSearch) 
-          : rawJobs.map(c => ({ item: c, score: 0 }));
+  //       // Run search (if compositeSearch empty, treat all rawJobs as matched with score 0)
+  //       const fuseResults = compositeSearch 
+  //         ? fuse.search(compositeSearch) 
+  //         : rawJobs.map(c => ({ item: c, score: 0 }));
 
-        const scored = fuseResults.map(r => ({
-          item: r.item,
-          score: typeof r.score === 'number' ? r.score : 0
-        }));
+  //       const scored = fuseResults.map(r => ({
+  //         item: r.item,
+  //         score: typeof r.score === 'number' ? r.score : 0
+  //       }));
           
-        const validJobs = filterValidJobs(scored);
+  //       const validJobs = filterValidJobs(scored);
 
-        validJobs.sort((a, b) => {
-          if (a._score !== b._score) return a._score - b._score;
-          return new Date(b.postedDate) - new Date(a.postedDate);
-        });
+  //       validJobs.sort((a, b) => {
+  //         if (a._score !== b._score) return a._score - b._score;
+  //         return new Date(b.postedDate) - new Date(a.postedDate);
+  //       });
 
-        totalJobs = validJobs.length;
-        jobs = validJobs.slice(skip, skip + limit);
-      }
-    } catch (err) {
-      logger.error(`Fuzzy search error: ${err.message}`);
-      throw err;
-    }
-  }
+  //       totalJobs = validJobs.length;
+  //       jobs = validJobs.slice(skip, skip + limit);
+  //     }
+  //   } catch (err) {
+  //     logger.error(`Fuzzy search error: ${err.message}`);
+  //     throw err;
+  //   }
+  // }
 
   // Cache final payload
   const payloadToCache = { jobs, totalJobs };
