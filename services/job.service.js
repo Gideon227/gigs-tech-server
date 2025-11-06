@@ -6,6 +6,7 @@ const Fuse = require('fuse.js');
 
 const CANDIDATE_LIMIT = 2000; // max rows to fetch for fuzzy processing
 const CANDIDATE_MULTIPLIER = 10;
+const CACHE_TTL = 60;
 
 const thirtyDaysAgo = new Date();
 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -264,13 +265,6 @@ function containsRequiredKeywords(job) {
     
     // If combined text is empty, we can't determine - exclude
     if (combinedText.trim().length === 0) return false;
-    
-    // Check if ANY pattern matches (at least one keyword must be present)
-    // for (const pattern of REQUIRED_PATTERNS) {
-    //   if (pattern.test(combinedText)) {
-    //     return true; // Found at least one required keyword
-    //   }
-    // }
 
     for (const keyword of REQUIRED_KEYWORDS) {
       const simpleKeyword = keyword.toLowerCase().replace(/\s+/g, " ").trim();
@@ -364,73 +358,44 @@ exports.getAllJobs = async (reqQuery = {}) => {
   features.sort().limitFields().paginate();
   const options = features.build();
 
-  const pageLimit = (options._limit && Number(options._limit)) || 10;
+  const limit = options.take || 10;
+  const skip = options.skip || 0;
+  
+  const fuzzyEnabled = !!(features.fuzzy && (features.fuzzy.keyword || features.fuzzy.location));
+  
   const candidateFetchLimit = Math.min(
     CANDIDATE_LIMIT,
-    Math.max(100, pageLimit * CANDIDATE_MULTIPLIER)
+    Math.max(100, limit * CANDIDATE_MULTIPLIER)
   );
 
-  const candidateQuery = {
-    where: options.where || {},
-    take: candidateFetchLimit,
-    select: options.select || undefined,
-    orderBy: options.orderBy || undefined,
-  };
-
-  let candidates = [];
-  try {
-    candidates = await prisma.job.findMany(candidateQuery);
-  } catch (err) {
-    logger.error(`Prisma findMany error: ${err.message}`);
-    throw err;
-  }
-
-  const fuzzyEnabled = !!(features.fuzzy && (features.fuzzy.keyword || features.fuzzy.location));
-
+  let rawJobs = [];
   let jobs = [];
   let totalJobs = 0;
 
-  // 🧠 NON-FUZZY SEARCH
+  try {
+    rawJobs = await prisma.job.findMany({
+      where: {
+        ...options.where,
+        postedDate: { gte: thirtyDaysAgo },
+        jobStatus: { equals: "active" },
+      },
+      select: options.select,
+      orderBy: options.orderBy || [{ postedDate: "desc" }],
+      take: candidateFetchLimit,
+    });
+  } catch (err) {
+    logger.error(`Prisma fetch all job, error: ${err.message}`);
+    throw err;
+  }
+
+  // NON-FUZZY SEARCH
   if (!fuzzyEnabled) {
-    try {
-      let rawJobs = await prisma.job.findMany({
-        where: {
-          ...options.where,
-          postedDate: { gte: thirtyDaysAgo },
-          jobStatus: { equals: "active" },
-        },
-        orderBy: options.orderBy || [{ postedDate: "desc" }],
-        select: options.select,
-        skip: options.skip,
-        take: options.take * 3,
-      });
-
-      const validJobs = filterValidJobs(rawJobs);
-      
-      jobs = validJobs.slice(0, options.take || 10);
-
-      const allJobsForCount = await prisma.job.findMany({
-        where: {
-          ...options.where,
-          postedDate: { gte: thirtyDaysAgo },
-          jobStatus: { equals: "active" },
-        },
-        select: {
-          id: true,
-          title: true,
-          description: true
-        },
-      });
-
-      totalJobs = filterValidJobs(allJobsForCount).length;
-
-      await redisClient.set(cacheKey, JSON.stringify(jobs), 'EX', 60);
-    } catch (err) {
-      logger.error(`Prisma findMany/count error: ${err.message}`);
-      throw err;
-    }
+    const validJobs = filterValidJobs(rawJobs);
+    totalJobs = validJobs.length;
+    const paginatedJobs = validJobs.slice(skip, skip + limit);
+    jobs = paginatedJobs;
   } 
-  // 🧠 FUZZY SEARCH
+  // FUZZY SEARCH
   else {
     try {
       const fuseKeys = [];
@@ -445,26 +410,11 @@ exports.getAllJobs = async (reqQuery = {}) => {
         fuseKeys.push({ name: 'country', weight: 0.2 });
       }
 
-      candidates = candidates.filter(job =>{
-        try {
-          return (
-            new Date(job.postedDate) >= thirtyDaysAgo &&
-            job.jobStatus === 'active'
-          );
-        } catch (error) {
-          logger.error(`Error filtering candidate job ${job?.id}: ${error.message}`);
-          return false;
-        }
-      });
-
-      candidates = filterValidJobs(candidates);
-      
-      // If no candidates returned, short-circuit
-      if (!candidates || candidates.length === 0) {
+      if (!rawJobs || rawJobs.length === 0) {
         jobs = [];
         totalJobs = 0;
       } else {
-        const fuse = new Fuse(candidates, {
+        const fuse = new Fuse(rawJobs, {
           keys: fuseKeys,
           threshold: 0.45,
           ignoreLocation: true,
@@ -476,65 +426,66 @@ exports.getAllJobs = async (reqQuery = {}) => {
         if (features.fuzzy.location) searchTerms.push(features.fuzzy.location);
         const compositeSearch = searchTerms.join(' ').trim();
 
-        // Run search (if compositeSearch empty, treat all candidates as matched with score 0)
+        // Run search (if compositeSearch empty, treat all rawJobs as matched with score 0)
         const fuseResults = compositeSearch 
           ? fuse.search(compositeSearch) 
-          : candidates.map(c => ({ item: c, score: 0 }));
+          : rawJobs.map(c => ({ item: c, score: 0 }));
 
         const scored = fuseResults.map(r => ({
           item: r.item,
           score: typeof r.score === 'number' ? r.score : 0
         }));
+          
+        const validJobs = filterValidJobs(scored);
+        // const paginatedJobs = validJobs.slice(skip, skip + limit);
 
-        scored.sort((a, b) => {
-          const wantsRelevancySort = options.orderBy &&
-            options.orderBy.some(order => Object.keys(order).includes('id'));
+        // validJobs.sort((a, b) => {
+        //   const wantsRelevancySort = options.orderBy &&
+        //     options.orderBy.some(order => Object.keys(order).includes('id'));
 
-          if (wantsRelevancySort && a.score !== b.score) {
-            return a.score - b.score;
-          }
+        //   if (wantsRelevancySort && a.score !== b.score) {
+        //     return a.score - b.score;
+        //   }
 
-          if (options.orderBy && options.orderBy.length > 0) {
-            for (const sortRule of options.orderBy) {
-              const field = Object.keys(sortRule)[0];
-              const direction = sortRule[field];
-              if (field === 'id') continue;
+        //   if (options.orderBy && options.orderBy.length > 0) {
+        //     for (const sortRule of options.orderBy) {
+        //       const field = Object.keys(sortRule)[0];
+        //       const direction = sortRule[field];
+        //       if (field === 'id') continue;
 
-              let aVal = a.item[field];
-              let bVal = b.item[field];
+        //       let aVal = a.item[field];
+        //       let bVal = b.item[field];
 
-              if (aVal == null && bVal == null) continue;
-              if (aVal == null) return 1;
-              if (bVal == null) return -1;
+        //       if (aVal == null && bVal == null) continue;
+        //       if (aVal == null) return 1;
+        //       if (bVal == null) return -1;
 
-              // Convert dates to timestamps
-              if (field === 'postedDate' || field === 'createdAt') {
-                aVal = new Date(aVal || 0).getTime();
-                bVal = new Date(bVal || 0).getTime();
-              }
+        //       // Convert dates to timestamps
+        //       if (field === 'postedDate' || field === 'createdAt') {
+        //         aVal = new Date(aVal || 0).getTime();
+        //         bVal = new Date(bVal || 0).getTime();
+        //       }
 
-              if (typeof aVal === 'number' && typeof bVal === 'number') {
-                if (aVal !== bVal) return direction === 'desc' ? bVal - aVal : aVal - bVal;
-              }
+        //       if (typeof aVal === 'number' && typeof bVal === 'number') {
+        //         if (aVal !== bVal) return direction === 'desc' ? bVal - aVal : aVal - bVal;
+        //       }
 
-              if (typeof aVal === 'string' && typeof bVal === 'string') {
-                if (aVal !== bVal) return direction === 'desc' ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
-              }
-            }
-          }
+        //       if (typeof aVal === 'string' && typeof bVal === 'string') {
+        //         if (aVal !== bVal) return direction === 'desc' ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+        //       }
+        //     }
+        //   }
 
-          return new Date(b.item.postedDate).getTime() - new Date(a.item.postedDate).getTime();
+        //   return new Date(b.item.postedDate).getTime() - new Date(a.item.postedDate).getTime();
+        // });
+
+        validJobs.sort((a, b) => {
+          if (a._score !== b._score) return a._score - b._score;
+          return new Date(b.postedDate) - new Date(a.postedDate);
         });
 
-        const page = Math.floor((options.skip || 0) / (options.take || 10)) + 1;
-        const limit = options.take || 10;
-        totalJobs = scored.length;
-
-        const start = (page - 1) * limit;
-        const end = start + limit;
-
-        // Slice and extract items
-        jobs = scored.slice(start, end).map(x => x.item);
+        totalJobs = validJobs.length;
+        jobs = validJobs.slice(skip, skip + limit);
       }
     } catch (err) {
       logger.error(`Fuzzy search error: ${err.message}`);
@@ -631,7 +582,7 @@ exports.getRelatedJobs = async (jobId) => {
 
   if (!currentJob) throw new Error('Job not found');
 
-  const candidates = await prisma.job.findMany({
+  const rawJobs = await prisma.job.findMany({
     where: {
       id: { not: jobId },
       roleCategory: currentJob.roleCategory,
@@ -639,7 +590,7 @@ exports.getRelatedJobs = async (jobId) => {
     },
   });
 
-  const related = candidates
+  const related = rawJobs
     .map((job) => {
       let score = 3;
 
