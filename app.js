@@ -17,7 +17,7 @@ const app = express();
 // GLOBAL MIDDLEWARE
 app.use(helmet());
 
-const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(o => o.trim());
+const allowedOrigins = (process.env.CORS_ORIGIN || 'https://gigs.tech').split(',').map(o => o.trim());
 
 const corsOptions = {
   origin: function (origin, callback) {
