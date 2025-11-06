@@ -246,9 +246,6 @@ function extractSkills(skills) {
   return '';
 }
 
-/**
- * Checks if job contains at least one required keyword
- */
 function containsRequiredKeywords(job) {
   try {
     // Extract and prepare text fields
@@ -260,21 +257,31 @@ function containsRequiredKeywords(job) {
     const combinedText = `${title} ${description} ${skills}`;
     
     // If combined text is empty, we can't determine - exclude
-    if (combinedText.trim().length === 0 || !combinedText.trim()) return false;
+    if (combinedText.trim().length === 0) return false;
+    
+    // Check if ANY pattern matches (at least one keyword must be present)
+    // for (const pattern of REQUIRED_PATTERNS) {
+    //   if (pattern.test(combinedText)) {
+    //     return true; // Found at least one required keyword
+    //   }
+    // }
 
     for (const keyword of REQUIRED_KEYWORDS) {
-      if (typeof keyword !== 'string') continue;
       const simpleKeyword = keyword.toLowerCase().replace(/\s+/g, " ").trim();
-      if (combinedText.includes(simpleKeyword) || title.includes(simpleKeyword)) {
+      if (
+        combinedText.includes(simpleKeyword) || 
+        title.includes(simpleKeyword) // strong bias to title
+      ) {
         return true;
       }
     }
 
-    if (!skills && REQUIRED_KEYWORDS.some(k => typeof k === 'string' && title.includes(k.toLowerCase()))) {
+    // Title-only fallback if description is missing
+    if (!skills && REQUIRED_KEYWORDS.some(k => title.includes(k.toLowerCase()))) {
       return true;
     }
-
-    return false; 
+    
+    return false; // No required keywords found
   } catch (error) {
     logger.error(`Error checking required keywords for job ${job.id}: ${error.message}`);
     // If we can't determine, exclude for safety
@@ -282,7 +289,6 @@ function containsRequiredKeywords(job) {
   }
 }
 
-//Validates that job has required fields with actual content
 function hasValidFields(job) {
   if (!job) return false;
 
@@ -292,9 +298,6 @@ function hasValidFields(job) {
   return true;
 }
 
-/**
- * Comprehensive job validation and filtering
- */
 function isValidJob(job) {
   if (!job) return false;
   if (!hasValidFields(job)) return false;
@@ -336,15 +339,15 @@ exports.getAllJobs = async (reqQuery = {}) => {
   const cacheKey = buildCacheKey('jobs', reqQuery);
 
   // Try cache first
-  try {
-    const cachedData = await redisClient.get(cacheKey);
-    if (cachedData) {
-      logger.debug(`Redis cache hit: ${cacheKey}`);
-      return JSON.parse(cachedData);
-    }
-  } catch (err) {
-    logger.error(`Redis get error: ${err.message}`);
-  }
+  // try {
+  //   const cachedData = await redisClient.get(cacheKey);
+  //   if (cachedData) {
+  //     logger.debug(`Redis cache hit: ${cacheKey}`);
+  //     return JSON.parse(cachedData);
+  //   }
+  // } catch (err) {
+  //   logger.error(`Redis get error: ${err.message}`);
+  // }
 
   const features = new APIFeatures(reqQuery);
   await features.filter();
@@ -356,10 +359,10 @@ exports.getAllJobs = async (reqQuery = {}) => {
   
   const fuzzyEnabled = !!(features.fuzzy && (features.fuzzy.keyword || features.fuzzy.location));
   
-  const candidateFetchLimit = Math.min(
-    CANDIDATE_LIMIT,
-    Math.max(100, limit * CANDIDATE_MULTIPLIER)
-  );
+  // const candidateFetchLimit = Math.min(
+  //   CANDIDATE_LIMIT,
+  //   Math.max(100, limit * CANDIDATE_MULTIPLIER)
+  // );
 
   let rawJobs = [];
   let jobs = [];
@@ -373,8 +376,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
         jobStatus: { equals: "active" },
       },
       select: options.select,
-      orderBy: options.orderBy || [{ postedDate: "desc" }],
-      take: candidateFetchLimit,
+      orderBy: options.orderBy || [{ postedDate: "desc" }]
     });
 
     const passing = rawJobs.filter(j => containsRequiredKeywords(j));
