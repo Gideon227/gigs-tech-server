@@ -15,7 +15,7 @@ const requestId = require('./middleware/requestId');
 const app = express();
 
 // GLOBAL MIDDLEWARE
-app.use(helmet());                         // Security headers
+app.use(helmet());
 
 const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(o => o.trim());
 
@@ -32,6 +32,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json({ limit: '30kb' }));  // Body parser for JSON
 app.use(express.urlencoded({ extended: true }));
