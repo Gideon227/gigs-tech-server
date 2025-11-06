@@ -188,7 +188,7 @@ const REQUIRED_KEYWORDS = [
   
   // Common abbreviations and variations
   'd365',
-  'powerbi',
+//  'powerbi',
   'powerapps',
   'powerautomate',
   'low-code platform', 
@@ -338,16 +338,16 @@ function filterValidJobs(jobs) {
 exports.getAllJobs = async (reqQuery = {}) => {
   const cacheKey = buildCacheKey('jobs', reqQuery);
 
-  // Try cache first
-  // try {
-  //   const cachedData = await redisClient.get(cacheKey);
-  //   if (cachedData) {
-  //     logger.debug(`Redis cache hit: ${cacheKey}`);
-  //     return JSON.parse(cachedData);
-  //   }
-  // } catch (err) {
-  //   logger.error(`Redis get error: ${err.message}`);
-  // }
+  //Try cache first
+  try {
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      logger.debug(`Redis cache hit: ${cacheKey}`);
+      return JSON.parse(cachedData);
+    }
+  } catch (err) {
+    logger.error(`Redis get error: ${err.message}`);
+  }
 
   const features = new APIFeatures(reqQuery);
   await features.filter();
