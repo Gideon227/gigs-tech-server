@@ -4,7 +4,7 @@ const redisClient = require('../config/redisClient');
 const logger = require('../config/logger');
 const Fuse = require('fuse.js');
 
-const CANDIDATE_LIMIT = 2000; // max rows to fetch for fuzzy processing
+const CANDIDATE_LIMIT = 10000; // max rows to fetch for fuzzy processing
 const CANDIDATE_MULTIPLIER = 10;
 const CACHE_TTL = 60;
 
@@ -208,10 +208,6 @@ const REQUIRED_PATTERNS = REQUIRED_KEYWORDS.map(keyword =>
 );
 
 // UTILITY FUNCTIONS
-
-/**
- * Checks if a string is empty or contains only whitespace
- */
 function isEmptyOrWhitespace(value) {
   if (value === null || value === undefined) return true;
   if (typeof value !== 'string') return true;
@@ -264,24 +260,18 @@ function containsRequiredKeywords(job) {
     const combinedText = `${title} ${description} ${skills}`;
     
     // If combined text is empty, we can't determine - exclude
-    if (combinedText.trim().length === 0) return false;
+    if (combinedText.trim().length === 0 || !combinedText.trim()) return false;
 
-    for (const keyword of REQUIRED_KEYWORDS) {
-      const simpleKeyword = keyword.toLowerCase().replace(/\s+/g, " ").trim();
-      if (
-        combinedText.includes(simpleKeyword) || 
-        title.includes(simpleKeyword) // strong bias to title
-      ) {
-        return true;
-      }
+    for (const pattern of REQUIRED_PATTERNS) {
+      if (pattern.test(combinedText)) return true;
     }
 
-    // Title-only fallback if description is missing
-    if (!skills && REQUIRED_KEYWORDS.some(k => title.includes(k.toLowerCase()))) {
+    // Title-only fallback if skills is missing
+    if (!skills && REQUIRED_PATTERNS.some(k => title.includes(k.toLowerCase()))) {
       return true;
     }
     
-    return false; // No required keywords found
+    return false; 
   } catch (error) {
     logger.error(`Error checking required keywords for job ${job.id}: ${error.message}`);
     // If we can't determine, exclude for safety
@@ -383,6 +373,10 @@ exports.getAllJobs = async (reqQuery = {}) => {
       orderBy: options.orderBy || [{ postedDate: "desc" }],
       take: candidateFetchLimit,
     });
+
+    const passing = rawJobs.filter(j => containsRequiredKeywords(j));
+    console.log("Passing jobs:", passing.length);
+    
   } catch (err) {
     logger.error(`Prisma fetch all job, error: ${err.message}`);
     throw err;
@@ -437,47 +431,6 @@ exports.getAllJobs = async (reqQuery = {}) => {
         }));
           
         const validJobs = filterValidJobs(scored);
-        // const paginatedJobs = validJobs.slice(skip, skip + limit);
-
-        // validJobs.sort((a, b) => {
-        //   const wantsRelevancySort = options.orderBy &&
-        //     options.orderBy.some(order => Object.keys(order).includes('id'));
-
-        //   if (wantsRelevancySort && a.score !== b.score) {
-        //     return a.score - b.score;
-        //   }
-
-        //   if (options.orderBy && options.orderBy.length > 0) {
-        //     for (const sortRule of options.orderBy) {
-        //       const field = Object.keys(sortRule)[0];
-        //       const direction = sortRule[field];
-        //       if (field === 'id') continue;
-
-        //       let aVal = a.item[field];
-        //       let bVal = b.item[field];
-
-        //       if (aVal == null && bVal == null) continue;
-        //       if (aVal == null) return 1;
-        //       if (bVal == null) return -1;
-
-        //       // Convert dates to timestamps
-        //       if (field === 'postedDate' || field === 'createdAt') {
-        //         aVal = new Date(aVal || 0).getTime();
-        //         bVal = new Date(bVal || 0).getTime();
-        //       }
-
-        //       if (typeof aVal === 'number' && typeof bVal === 'number') {
-        //         if (aVal !== bVal) return direction === 'desc' ? bVal - aVal : aVal - bVal;
-        //       }
-
-        //       if (typeof aVal === 'string' && typeof bVal === 'string') {
-        //         if (aVal !== bVal) return direction === 'desc' ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
-        //       }
-        //     }
-        //   }
-
-        //   return new Date(b.item.postedDate).getTime() - new Date(a.item.postedDate).getTime();
-        // });
 
         validJobs.sort((a, b) => {
           if (a._score !== b._score) return a._score - b._score;
