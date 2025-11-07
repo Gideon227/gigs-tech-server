@@ -129,19 +129,20 @@ const REQUIRED_KEYWORDS = [
   "Copilot Developer",
   "Copilot Consultant",
 
-  "Microsoft Business Applications",
-  "MS Business Apps",
-  "Low-code Developer",
-  "No-code Developer",
-  "Citizen Developer",
-  "Solution Architect",
-  "PowerShell",
-  "SharePoint Inegrstion",
-  "Azure Logic Apps",
-  "Microsoft Flow",
-  "Power Automate Desktop",
-  "AI Builder",
-  "Microsoft Dataverse"
+  // "Microsoft Business Applications",
+  // "MS Business Apps",
+  // "Low-code Developer",
+  // "No-code Developer",
+  // "Citizen Developer",
+  // "Solution Architect",
+  // "PowerShell",
+  // "SharePoint Inegrstion",
+  // "Azure Logic Apps",
+  // "Microsoft Flow",
+  // "Power Automate Desktop",
+  // "AI Builder",
+  // "Microsoft Dataverse", 
+
 ];
 
 // Compile regex patterns once for performance
