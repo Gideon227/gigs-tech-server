@@ -23,7 +23,7 @@ router
 
 router
   .route('/admin/analytics')
-  .get(jobController.getJobAnalytics)
+  .get(jobController.getJobAnalytics);
 
 router
   .route('/admin/analytics/users')
