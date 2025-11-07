@@ -21,18 +21,27 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'https://gigs.tech').split(',
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow requests with no origin (like mobile apps, Postman, or server-to-server)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error(`CORS blocked for origin: ${origin}`));
+      logger.warn(`CORS blocked for origin: ${origin}`);
+      callback(new Error(`CORS policy does not allow access from origin: ${origin}`));
     }
   },
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+  exposedHeaders: ['X-Request-ID'],
+  maxAge: 86400, // 24 hours
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
 
 app.use(express.json({ limit: '30kb' }));  // Body parser for JSON
 app.use(express.urlencoded({ extended: true }));
