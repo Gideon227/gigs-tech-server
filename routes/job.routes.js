@@ -13,10 +13,6 @@ router
   .patch(jobController.updateJob)
   .delete(jobController.deleteJob);
 
-// router
-//   .route('/:id/status')
-//   .patch(jobController.updateJobStatus);
-
 router
   .route('/:id/related-jobs')
   .get( jobController.getRelatedJobs);
@@ -32,22 +28,5 @@ router
 router
   .route('/admin/analytics/metrics')
   .get(jobController.metrics);
-
-// router
-//   .route('/analytics/dashboard')
-//   .get(jobController.getDashboardAnalytics)
-
-// router
-//   .route('/analytics/geographic')
-//   .get(jobController.getGeographicData)
-
-// router
-//   .route('/analytics/traffic-sources')
-//   .get(jobController.getTrafficSources)
-
-// router
-//   .route('/analytics/sync')
-//   .get(jobController.syncGoogleAnalytics)
-
 
 module.exports = router;
