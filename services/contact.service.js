@@ -1,22 +1,26 @@
-const nodemailer = require("nodemailer");
+const formData = require("form-data");
+const Mailgun = require("mailgun.js");
 
-exports.sendContactEmail = ({ email, message }) => {
-  const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST, // smtp.gmail.com
-    port: Number(process.env.EMAIL_PORT), // 465
-    secure: true,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
+const mg = new Mailgun(formData);
+const client = mg.client({
+  username: "api",
+  key: process.env.MAILGUN_API_KEY,
+});
 
-  const mailOptions = {
-    from: `"Gigs Tech" <${process.env.EMAIL_USER}>`,
-    to: process.env.ADMIN_EMAIL, // Send to admin
-    subject: "A Message To Gigs Tech",
-    text: `From: ${email}\n\nMessage:\n${message}`,
-  };
+exports.sendContactEmail = async ({ email, message }) => {
+  try {
+    const data = {
+      from: process.env.EMAIL_FROM,
+      to: process.env.ADMIN_EMAIL,
+      subject: "A Message to Gigs Tech",
+      text: `From: ${email}\n\nMessage:\n${message}`,
+    };
 
-  return transporter.sendMail(mailOptions);
-}
+    const result = await client.messages.create(process.env.MAILGUN_DOMAIN, data);
+    console.log("Mailgun sent:", result);
+    return result;
+  } catch (err) {
+    console.error("Mailgun error:", err);
+    throw err;
+  }
+};
