@@ -1,26 +1,42 @@
-const formData = require("form-data");
-const Mailgun = require("mailgun.js");
+const nodemailer = require("nodemailer");
+const logger = require("../config/logger");
 
-const mg = new Mailgun(formData);
-const client = mg.client({
-  username: "api",
-  key: process.env.MAILGUN_API_KEY,
-});
-
-exports.sendContactEmail = async ({ email, message }) => {
+exports.sendContactEmail = async ({ name, email, subject, message }) => {
   try {
-    const data = {
-      from: process.env.EMAIL_FROM,
-      to: process.env.ADMIN_EMAIL,
-      subject: "A Message to Gigs Tech",
-      text: `From: ${email}\n\nMessage:\n${message}`,
-    };
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      secure: process.env.SMTP_SECURE === "true", // true for 465, false for 587
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
 
-    const result = await client.messages.create(process.env.MAILGUN_DOMAIN, data);
-    console.log("Mailgun sent:", result);
-    return result;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border-radius: 10px; border: 1px solid #eee; padding: 20px; background-color: #fafafa;">
+        <h2 style="color: #0d9488;">📩 New Contact Message</h2>
+        <p style="font-size: 16px;"><strong>Name:</strong> ${name}</p>
+        <p style="font-size: 16px;"><strong>Email:</strong> ${email}</p>
+        <p style="font-size: 16px;"><strong>Subject:</strong> ${subject}</p>
+        <p style="font-size: 16px;"><strong>Message:</strong></p>
+        <div style="white-space: pre-line; background:#fff; padding:10px; border-radius:8px; border:1px solid #ddd;">${message}</div>
+        <hr style="margin-top:20px; border:none; border-top:1px solid #ddd;" />
+        <p style="color:#777; font-size: 13px;">Sent from <a href="https://gigs.tech" style="color:#0d9488; text-decoration:none;">Gigs Tech</a> contact form.</p>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: process.env.MAIL_FROM,
+      to: process.env.MAIL_TO,
+      subject: `New Contact Message: ${subject || "No subject"}`,
+      html,
+    });
+
+    logger?.info?.(`Contact email sent successfully from ${email}`);
+    return { success: true };
   } catch (err) {
-    console.error("Mailgun error:", err);
-    throw err;
+    logger?.error?.("Error sending contact email", err);
+    throw new Error("Failed to send contact message.");
   }
 };
