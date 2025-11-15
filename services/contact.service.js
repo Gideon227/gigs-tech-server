@@ -43,33 +43,23 @@
 //     throw new Error(`Failed to send contact message: ${err.message}`);
 //   }
 // };
-
+// contact.service.js
 const sgMail = require("@sendgrid/mail");
 
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL;
 const SENDGRID_TO_EMAIL = process.env.SENDGRID_TO_EMAIL;
 
-// Safety check for missing env vars
 if (!SENDGRID_API_KEY || !SENDGRID_FROM_EMAIL || !SENDGRID_TO_EMAIL) {
   console.error("Missing SendGrid environment variables.");
 }
 
 sgMail.setApiKey(SENDGRID_API_KEY);
 
-export const sendContactEmail = async ({ name, email, subject, message }) => {
+const sendContactEmail = async ({ name, email, subject, message }) => {
   try {
     const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border-radius: 10px; border: 1px solid #eee; padding: 20px; background-color: #fafafa;">
-        <h2 style="color: #0d9488;">📩 New Contact Message</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Subject:</strong> ${subject || "No subject"}</p>
-        <p><strong>Message:</strong></p>
-        <div style="white-space: pre-line; background:#fff; padding:10px; border-radius:8px; border:1px solid #ddd;">${message}</div>
-        <hr style="margin-top:20px; border:none; border-top:1px solid #ddd;" />
-        <p style="color:#777; font-size: 13px;">Sent from <a href="https://gigs.tech" style="color:#0d9488; text-decoration:none;">Gigs Tech</a> contact form.</p>
-      </div>
+      <div> ... your HTML template ... </div>
     `;
 
     await sgMail.send({
@@ -77,7 +67,7 @@ export const sendContactEmail = async ({ name, email, subject, message }) => {
       from: SENDGRID_FROM_EMAIL,
       subject: `New Contact Message: ${subject || "No subject"}`,
       html,
-      text: `Name: ${name}\nEmail: ${email}\nSubject: ${subject}\n\nMessage:\n${message}`,
+      text: `Name: ${name}\nEmail: ${email}\nSubject: ${subject}\nMessage:\n${message}`,
       replyTo: email,
     });
 
@@ -86,4 +76,8 @@ export const sendContactEmail = async ({ name, email, subject, message }) => {
     console.error("SendGrid Error:", error.response?.body || error.message);
     throw new Error("Failed to send contact message.");
   }
+};
+
+module.exports = {
+  sendContactEmail,
 };
