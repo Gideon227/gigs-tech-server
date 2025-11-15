@@ -26,6 +26,7 @@
   "description": "",
   "dependencies": {
     "@prisma/client": "^6.9.0",
+    "@sendgrid/mail": "^8.1.6",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.13",

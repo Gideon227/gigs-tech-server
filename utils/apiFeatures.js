@@ -3,9 +3,6 @@ const Fuse = require('fuse.js')
 const prisma = require('../config/prisma')
 
 class APIFeatures {
-  /**
-   * @param {Object} queryParams  req.query  (e.g. {'salary[gt]': '50000', page: '2', limit: '10' })
-   */
   constructor(queryParams) {
     this.queryParams = { ...queryParams };
     this.options = {
@@ -24,16 +21,23 @@ class APIFeatures {
   }
 
   async filter() {
-    // Copy and exclude special fields
     const queryObj = { ...this.queryParams };
     const excludedFields = ['page', 'sort', 'limit', 'fields'];
     excludedFields.forEach((el) => delete queryObj[el]);
 
     const where = {};
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    where.postedDate = { gte: thirtyDaysAgo };
+    // ---------------------------------------------------------
+    // ✅ DEFAULT: Only apply 30-days filter when NO datePosted
+    // ---------------------------------------------------------
+    const hasUserDefinedDate = Boolean(queryObj.datePosted);
+
+    if (!hasUserDefinedDate) {
+      const default30 = new Date();
+      default30.setDate(default30.getDate() - 30);
+
+      where.postedDate = { gte: default30 };
+    }
 
     // Exact match filters
     ['country', 'state', 'city'].forEach((field) => {
@@ -45,7 +49,7 @@ class APIFeatures {
       }
     });
 
-    // Keyword search across title and description
+    // Keyword search across title + description + companyName
     if (queryObj.keyword) {
       const keyword = String(queryObj.keyword).trim();
       if (keyword.length > 0) {
@@ -56,36 +60,26 @@ class APIFeatures {
         where.AND.push({
           OR: [
             {
-              title: {
-                contains: keyword,
-                mode: 'insensitive',
-              },
+              title: { contains: keyword, mode: 'insensitive' },
             },
             {
-              description: {
-                contains: keyword,
-                mode: 'insensitive',
-              },
+              description: { contains: keyword, mode: 'insensitive' },
             },
             {
-              companyName: {
-                contains: keyword,
-                mode: 'insensitive',
-              },
+              companyName: { contains: keyword, mode: 'insensitive' },
             },
           ],
         });
       }
     }
 
-    // Handle location filtering
+    // Location fuzzy filter
     if (queryObj.location) {
       const loc = String(queryObj.location).trim();
       if (loc.length > 0) {
         this.fuzzy.location = loc;
         this.fuzzy.enabled = true;
 
-        // Broad OR contains filter to reduce candidate set
         where.AND = where.AND || [];
         where.AND.push({
           OR: [
@@ -100,12 +94,12 @@ class APIFeatures {
     if (queryObj.roleCategory) where.roleCategory = queryObj.roleCategory;
     if (queryObj.jobStatus) where.jobStatus = queryObj.jobStatus;
 
-    // Handle experienceLevel filtering (e.g., ?experienceLevel=senior)
+    // Experience level
     if (queryObj.experienceLevel) {
       where.experienceLevel = queryObj.experienceLevel;
     }
 
-    // For skills (Array column in DB)
+    // Skills (array)
     if (queryObj.skills) {
       if (Array.isArray(queryObj.skills)) {
         where.skills = { hasSome: queryObj.skills };
@@ -116,10 +110,7 @@ class APIFeatures {
       }
     }
 
-    // For jobType (Single string column in DB)
-    // if (queryObj.jobType) {
-    //   where.jobType = queryObj.jobType;
-    // }
+    // JobType (string or array)
     if (queryObj.jobType) {
       if (Array.isArray(queryObj.jobType)) {
         where.jobType = { in: queryObj.jobType };
@@ -128,11 +119,7 @@ class APIFeatures {
       }
     }
 
-    // For workSettings (Single string column in DB)
-    // if (queryObj.workSettings) {
-    //   where.workSettings = queryObj.workSettings;
-    // }
-
+    // Work settings
     if (queryObj.workSettings) {
       if (Array.isArray(queryObj.workSettings)) {
         where.workSettings = { in: queryObj.workSettings };
@@ -141,8 +128,7 @@ class APIFeatures {
       }
     }
 
-
-    // Boolean fields (e.g. ?isActive=true)
+    // Booleans
     const booleanFields = ['isActive'];
     booleanFields.forEach((key) => {
       if (queryObj[key] !== undefined) {
@@ -150,21 +136,23 @@ class APIFeatures {
       }
     });
 
-    // Salary Range
-    // Handle salary range (e.g., ?minSalary=30000&maxSalary=100000)
+    // Salary range
     if (queryObj.minSalary || queryObj.maxSalary) {
-      if (queryObj.minSalary !== undefined && queryObj.minSalary !== null && queryObj.minSalary !== '') {
+      if (queryObj.minSalary !== undefined && queryObj.minSalary !== '') {
         where.minSalary = { gte: parseFloat(queryObj.minSalary) };
       }
-      if (queryObj.maxSalary !== undefined && queryObj.maxSalary !== null && queryObj.maxSalary !== '') {
+      if (queryObj.maxSalary !== undefined && queryObj.maxSalary !== '') {
         where.maxSalary = { lte: parseFloat(queryObj.maxSalary) };
       }
     }
 
-     // Date posted logic
-    if (queryObj.datePosted) {
+    // ---------------------------------------------------------
+    // USER SPECIFIED datePosted OVERRIDES DEFAULT 30 DAYS
+    // ---------------------------------------------------------
+    if (hasUserDefinedDate) {
       const now = new Date();
       let postedAfter;
+
       switch (queryObj.datePosted) {
         case 'today':
           postedAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -179,13 +167,13 @@ class APIFeatures {
           postedAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 15);
           break;
       }
+
       if (postedAfter) {
         where.postedDate = { gte: postedAfter };
       }
     }
 
-    // Build Prisma where clause
-    // For comparators: salary[gt]=50000 → { salary: { gt: 50000 } }
+    // Comparator operators
     Object.keys(queryObj).forEach((field) => {
       const value = queryObj[field];
       const match = field.match(/(\w+)\[(gte|gt|lte|lt|ne)\]/);
@@ -205,7 +193,6 @@ class APIFeatures {
     });
 
     this.options.where = where;
-
     return this;
   }
 
@@ -217,10 +204,9 @@ class APIFeatures {
 
         if (field.startsWith('-')) {
           direction = 'desc';
-          field = field.slice(1); // remove '-'
+          field = field.slice(1);
         }
 
-        // if (field === 'datePosted') field = 'postedDate';
         return { [field]: direction };
       });
     } else {
@@ -231,7 +217,6 @@ class APIFeatures {
 
   limitFields() {
     if (this.queryParams.fields) {
-      // e.g. ?fields=title,company,salary → select: { title: true, company: true, salary: true }
       const fields = this.queryParams.fields.split(',');
       fields.forEach((f) => {
         this.options.select[f] = true;
@@ -251,11 +236,6 @@ class APIFeatures {
     return this;
   }
 
-  /**
-   * Parse a string value into the correct type based on field name.
-   * - If it's a numeric field (salary), parse as float
-   * - Otherwise leave as string
-   */
   _parseValue(field, value) {
     const numericFields = ['minSalary', 'maxSalary'];
     const booleanFields = ['isActive'];
@@ -269,11 +249,9 @@ class APIFeatures {
   }
 
   build() {
-    // If select is empty, Prisma will select all fields by default.
     if (!this.hasSelect) {
       delete this.options.select;
     }
-    // If no orderBy specified, delete it so Prisma defaults to no specific ordering
     if (this.options.orderBy.length === 0) {
       delete this.options.orderBy;
     }

@@ -39,29 +39,6 @@ const invalidateJobsCache = async () => {
   }
 };
 
-// const deduplicateJobs = (jobs) => {
-//   const seen = new Set();
-//   return jobs.filter((job) => {
-//     const key = [
-//       job.title?.trim().toLowerCase(),
-//       job.description?.trim().toLowerCase(),
-//       (job.skills || []).slice().sort().join('|'),
-//       job.country?.trim().toLowerCase(),
-//       job.state?.trim().toLowerCase(),
-//       job.city?.trim().toLowerCase(),
-//       job.minSalary,
-//       job.maxSalary,
-//     ].join('::');
-//     if (seen.has(key)) return false;
-//     seen.add(key);
-//     return true;
-//   });
-// };
-
-/**
- * Excluded keywords for Microsoft Dynamics/Power Platform related jobs
- * These keywords will be matched case-insensitively against title, description, and skills
- */
 const REQUIRED_KEYWORDS = [
   "Microsoft Power Platform",
   "Power Platform",
@@ -201,13 +178,6 @@ function containsRequiredKeywords(job) {
     
     // If combined text is empty, we can't determine - exclude
     if (combinedText.trim().length === 0) return false;
-    
-    // Check if ANY pattern matches (at least one keyword must be present)
-    // for (const pattern of REQUIRED_PATTERNS) {
-    //   if (pattern.test(combinedText)) {
-    //     return true; // Found at least one required keyword
-    //   }
-    // }
 
     for (const keyword of REQUIRED_KEYWORDS) {
       const simpleKeyword = keyword.toLowerCase().replace(/\s+/g, " ").trim();
@@ -315,7 +285,7 @@ exports.getAllJobs = async (reqQuery = {}) => {
     rawJobs = await prisma.job.findMany({
       where: {
         ...options.where,
-        postedDate: { gte: thirtyDaysAgo },
+        // postedDate: { gte: thirtyDaysAgo },
         jobStatus: { equals: "active" },
       },
       select: options.select,

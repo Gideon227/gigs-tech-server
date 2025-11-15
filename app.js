@@ -1,4 +1,3 @@
-// app.js
 require('./config/config')
 const express = require('express');
 const morgan = require('morgan');
