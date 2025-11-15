@@ -44,7 +44,7 @@
 //   }
 // };
 
-import sgMail from "@sendgrid/mail";
+const sgMail = require("@sendgrid/mail");
 
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL;
