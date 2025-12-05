@@ -230,19 +230,6 @@ function filterValidJobs(jobs) {
       return isValidJob(job);
     } catch (error) {
       logger.error(`Error validating job ${job?.id}: ${error.message}`);
-      return false;
-    }
-  });
-}
-
-function filterValidJobs(jobs) {
-  if (!Array.isArray(jobs)) return [];
-  
-  return jobs.filter(job => {
-    try {
-      return isValidJob(job);
-    } catch (error) {
-      logger.error(`Error validating job ${job?.id}: ${error.message}`);
       return false; // Exclude on error
     }
   });
